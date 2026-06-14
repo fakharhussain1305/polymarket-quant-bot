@@ -1,0 +1,46 @@
+name: Run Polymarket Quant Bot
+
+on:
+  schedule:
+    # Triggers the workflow at the top of every hour (CRON format)
+    - cron: '0 * * * *'
+  workflow_dispatch: # Allows you to also trigger it manually with a button click
+
+jobs:
+  trade:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository code
+      uses: actions/checkout@v4
+
+    - name: Set up Python Environment
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install Quant Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Execute Trading Script
+      env:
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+        POLYMARKET_PRIVATE_KEY: ${{ secrets.POLYMARKET_PRIVATE_KEY }}
+      run: python main.py
+
+    - name: Commit and Push Ledger Updates
+      run: |
+        git config --global user.name "QuantBot-Automation"
+        git config --global user.email "bot@github.com"
+        # Check if the CSV ledger was created/modified
+        if [ -f paper_trades.csv ]; then
+          git add paper_trades.csv
+          # Only commit if there are actual new trades recorded
+          git diff-index --quiet HEAD || git commit -m "Automated Ledger Update: New Trades Logged"
+          git push
+        else
+          echo "No new trades executed during this interval."
+        fi
