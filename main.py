@@ -271,3 +271,83 @@ if ai_decision['action'] in ["BUY_YES", "BUY_NO"]:
             print(f"❌ EXECUTION FAILURE: {e}")
 else:
     print("\n🛑 NO TRADE: Midpoint consensus matches calculated probabilities.")
+    
+import csv
+import os
+from datetime import datetime
+
+# ... (Your existing code up to the market data scraping) ...
+
+# --- NEW SECTION: PORTFOLIO MANAGER (TAKE PROFIT ENGINE) ---
+def check_take_profit(target_market, live_bid_price):
+    csv_filename = "paper_trades.csv"
+    if not os.path.exists(csv_filename):
+        return # No trades have been made yet
+
+    total_shares = 0.0
+    total_spent = 0.0
+
+    # 1. Read the ledger to calculate our current position and Average Entry Price
+    with open(csv_filename, mode='r', encoding='utf-8') as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            if row['Market'] == target_market:
+                size = float(row['Size'])
+                price = float(row['Execution Price'])
+                
+                if row['Action'] == 'BUY_YES':
+                    total_shares += size
+                    total_spent += (size * price)
+                elif row['Action'] == 'SELL_YES':
+                    total_shares -= size
+                    # Adjust total spent proportionally when we sell
+                    if total_shares > 0:
+                        avg_cost = total_spent / (total_shares + size)
+                        total_spent -= (size * avg_cost)
+
+    # 2. Check if we actually own shares right now
+    if total_shares <= 0.1: # Account for floating point rounding
+        return
+
+    average_entry_price = total_spent / total_shares
+    
+    # 3. Calculate ROI based on the CURRENT market Bid price (what we can sell for instantly)
+    roi = (live_bid_price - average_entry_price) / average_entry_price
+
+    print(f"\n💼 PORTFOLIO MANAGER CHECK:")
+    print(f"Holding {total_shares} shares of '{target_market}'")
+    print(f"Avg Entry: ${average_entry_price:.3f} | Live Sell Price: ${live_bid_price:.3f} | Current ROI: {roi*100:.1f}%")
+
+    # 4. The Mathematical Exit Trigger (15% Profit or 20% Stop Loss)
+    if roi >= 0.15:
+        print("🚀 TAKE PROFIT TRIGGERED! Locking in 15%+ gains.")
+        execute_paper_sell(target_market, total_shares, live_bid_price, f"Take Profit triggered at {roi*100:.1f}% ROI")
+    elif roi <= -0.20:
+        print("🛑 STOP LOSS TRIGGERED! Cutting losses at -20%.")
+        execute_paper_sell(target_market, total_shares, live_bid_price, f"Stop Loss triggered at {roi*100:.1f}% ROI")
+    else:
+        print("⏳ Holding position. Target ROI not met.")
+
+def execute_paper_sell(market, size, price, reason):
+    with open("paper_trades.csv", mode='a', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
+        writer.writerow([
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            market,
+            "SELL_YES",
+            size,
+            "MAKER (Exit Protocol)",
+            price,
+            "N/A", # AI Probability is N/A because this is a pure math execution
+            reason
+        ])
+    print("💾 SELL Order successfully logged to ledger.")
+
+# =====================================================================
+# How to trigger this in your main loop:
+# Assuming you have variables `market_question` and `market_bid_price` 
+# from your Polymarket API pull earlier in the script:
+# =====================================================================
+
+# Call the function BEFORE the AI makes a new decision
+check_take_profit(market_question, float(current_bid_price))
