@@ -1,0 +1,4 @@
+py-clob-client
+openai
+tavily-python
+requests
