@@ -350,4 +350,4 @@ def execute_paper_sell(market, size, price, reason):
 # =====================================================================
 
 # Call the function BEFORE the AI makes a new decision
-check_take_profit(market_question, float(current_bid_price))
+check_take_profit(market_question, float(current_price))
