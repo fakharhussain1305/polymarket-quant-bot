@@ -3,7 +3,7 @@ name: Run Polymarket Quant Bot
 on:
   schedule:
     # Triggers the workflow at the top of every hour (CRON format)
-    - cron: '0 * * * *'
+    - cron: '17 * * * *'
   workflow_dispatch: # Allows you to also trigger it manually with a button click
 
 jobs:
