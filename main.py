@@ -277,17 +277,18 @@ import os
 from datetime import datetime
 
 # ... (Your existing code up to the market data scraping) ...
-
 # --- NEW SECTION: PORTFOLIO MANAGER (TAKE PROFIT ENGINE) ---
-def check_take_profit(target_market, live_bid_price):
+def check_take_profit(target_market, live_yes_price):
     csv_filename = "paper_trades.csv"
     if not os.path.exists(csv_filename):
-        return # No trades have been made yet
+        return
 
-    total_shares = 0.0
-    total_spent = 0.0
+    yes_shares = 0.0
+    yes_spent = 0.0
+    no_shares = 0.0
+    no_spent = 0.0
 
-    # 1. Read the ledger to calculate our current position and Average Entry Price
+    # 1. Read the ledger to calculate our YES and NO positions
     with open(csv_filename, mode='r', encoding='utf-8') as file:
         reader = csv.DictReader(file)
         for row in reader:
@@ -296,52 +297,65 @@ def check_take_profit(target_market, live_bid_price):
                 price = float(row['Execution Price'])
                 
                 if row['Action'] == 'BUY_YES':
-                    total_shares += size
-                    total_spent += (size * price)
+                    yes_shares += size
+                    yes_spent += (size * price)
                 elif row['Action'] == 'SELL_YES':
-                    total_shares -= size
-                    # Adjust total spent proportionally when we sell
-                    if total_shares > 0:
-                        avg_cost = total_spent / (total_shares + size)
-                        total_spent -= (size * avg_cost)
+                    yes_shares -= size
+                    if yes_shares > 0:
+                        avg_cost = yes_spent / (yes_shares + size)
+                        yes_spent -= (size * avg_cost)
+                elif row['Action'] == 'BUY_NO':
+                    no_shares += size
+                    no_spent += (size * price)
+                elif row['Action'] == 'SELL_NO':
+                    no_shares -= size
+                    if no_shares > 0:
+                        avg_cost = no_spent / (no_shares + size)
+                        no_spent -= (size * avg_cost)
 
-    # 2. Check if we actually own shares right now
-    if total_shares <= 0.1: # Account for floating point rounding
-        return
+    # 2. Check and Execute YES Positions
+    if yes_shares > 0.1:
+        avg_entry_yes = yes_spent / yes_shares
+        roi_yes = (live_yes_price - avg_entry_yes) / avg_entry_yes
+        print(f"\n💼 PORTFOLIO [YES]: Holding {yes_shares} shares | Avg Entry: ${avg_entry_yes:.3f} | Live Price: ${live_yes_price:.3f} | ROI: {roi_yes*100:.1f}%")
+        
+        if roi_yes >= 0.15:
+            print("🚀 TAKE PROFIT TRIGGERED! Locking in 15%+ gains on YES.")
+            execute_paper_sell(target_market, yes_shares, live_yes_price, f"Take Profit triggered at {roi_yes*100:.1f}% ROI", "SELL_YES")
+        elif roi_yes <= -0.20:
+            print("🛑 STOP LOSS TRIGGERED! Cutting losses at -20% on YES.")
+            execute_paper_sell(target_market, yes_shares, live_yes_price, f"Stop Loss triggered at {roi_yes*100:.1f}% ROI", "SELL_YES")
 
-    average_entry_price = total_spent / total_shares
-    
-    # 3. Calculate ROI based on the CURRENT market Bid price (what we can sell for instantly)
-    roi = (live_bid_price - average_entry_price) / average_entry_price
+    # 3. Check and Execute NO Positions
+    if no_shares > 0.1:
+        avg_entry_no = no_spent / no_shares
+        live_no_price = 1.0 - live_yes_price # The Inversion Trick
+        roi_no = (live_no_price - avg_entry_no) / avg_entry_no
+        print(f"\n💼 PORTFOLIO [NO]: Holding {no_shares} shares | Avg Entry: ${avg_entry_no:.3f} | Live Price: ${live_no_price:.3f} | ROI: {roi_no*100:.1f}%")
+        
+        if roi_no >= 0.15:
+            print("🚀 TAKE PROFIT TRIGGERED! Locking in gains on NO.")
+            execute_paper_sell(target_market, no_shares, live_no_price, f"Take Profit triggered at {roi_no*100:.1f}% ROI", "SELL_NO")
+        elif roi_no <= -0.20:
+            print("🛑 STOP LOSS TRIGGERED! Cutting losses on NO.")
+            execute_paper_sell(target_market, no_shares, live_no_price, f"Stop Loss triggered at {roi_no*100:.1f}% ROI", "SELL_NO")
 
-    print(f"\n💼 PORTFOLIO MANAGER CHECK:")
-    print(f"Holding {total_shares} shares of '{target_market}'")
-    print(f"Avg Entry: ${average_entry_price:.3f} | Live Sell Price: ${live_bid_price:.3f} | Current ROI: {roi*100:.1f}%")
-
-    # 4. The Mathematical Exit Trigger (15% Profit or 20% Stop Loss)
-    if roi >= 0.15:
-        print("🚀 TAKE PROFIT TRIGGERED! Locking in 15%+ gains.")
-        execute_paper_sell(target_market, total_shares, live_bid_price, f"Take Profit triggered at {roi*100:.1f}% ROI")
-    elif roi <= -0.20:
-        print("🛑 STOP LOSS TRIGGERED! Cutting losses at -20%.")
-        execute_paper_sell(target_market, total_shares, live_bid_price, f"Stop Loss triggered at {roi*100:.1f}% ROI")
-    else:
-        print("⏳ Holding position. Target ROI not met.")
-
-def execute_paper_sell(market, size, price, reason):
+# 4. Updated Execution Function (Now accepts the action_type)
+def execute_paper_sell(market, size, price, reason, action_type):
     with open("paper_trades.csv", mode='a', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
         writer.writerow([
             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             market,
-            "SELL_YES",
+            action_type,  # Dynamically writes SELL_YES or SELL_NO
             size,
             "MAKER (Exit Protocol)",
             price,
-            "N/A", # AI Probability is N/A because this is a pure math execution
+            "N/A", 
             reason
         ])
-    print("💾 SELL Order successfully logged to ledger.")
+    print(f"💾 {action_type} Order successfully logged to ledger.")
+
 
 # =====================================================================
 # How to trigger this in your main loop:
