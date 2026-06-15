@@ -288,7 +288,7 @@ def check_take_profit(target_market, live_yes_price):
     no_shares = 0.0
     no_spent = 0.0
 
-    # 1. Read the ledger to calculate our YES and NO positions
+# 1. Read the ledger to calculate our YES and NO positions
     with open(csv_filename, mode='r', encoding='utf-8') as file:
         reader = csv.DictReader(file)
         for row in reader:
@@ -301,17 +301,26 @@ def check_take_profit(target_market, live_yes_price):
                     yes_spent += (size * price)
                 elif row['Action'] == 'SELL_YES':
                     yes_shares -= size
-                    if yes_shares > 0:
+                    if yes_shares > 0.01: # We use 0.01 to prevent floating-point micro-errors
                         avg_cost = yes_spent / (yes_shares + size)
                         yes_spent -= (size * avg_cost)
+                    else:
+                        # THE FIX: If we sold everything, reset the money to zero!
+                        yes_shares = 0.0
+                        yes_spent = 0.0
+                        
                 elif row['Action'] == 'BUY_NO':
                     no_shares += size
                     no_spent += (size * price)
                 elif row['Action'] == 'SELL_NO':
                     no_shares -= size
-                    if no_shares > 0:
+                    if no_shares > 0.01:
                         avg_cost = no_spent / (no_shares + size)
                         no_spent -= (size * avg_cost)
+                    else:
+                        # THE FIX: Reset NO money to zero!
+                        no_shares = 0.0
+                        no_spent = 0.0
 
     # 2. Check and Execute YES Positions
     if yes_shares > 0.1:
