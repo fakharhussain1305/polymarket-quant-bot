@@ -46,7 +46,92 @@ client = ClobClient(
     chain_id=137, 
     signature_type=0
 )
+import urllib.parse # Add this to your imports at the top!
 
+# --- 2. INDEPENDENT PORTFOLIO MANAGER ---
+print("\n💼 WAKING UP PORTFOLIO MANAGER...")
+
+def manage_open_positions():
+    csv_filename = "paper_trades.csv"
+    if not os.path.exists(csv_filename):
+        print("  - No portfolio data found.")
+        return
+
+    # 1. Read the ledger to find our open positions
+    portfolio = {}
+    with open(csv_filename, mode='r', encoding='utf-8') as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            m = row['Market']
+            if m not in portfolio:
+                portfolio[m] = {'yes_shares': 0.0, 'yes_spent': 0.0, 'no_shares': 0.0, 'no_spent': 0.0}
+            
+            size = float(row['Size'])
+            price = float(row['Execution Price'])
+            action = row['Action']
+            
+            if action == 'BUY_YES':
+                portfolio[m]['yes_shares'] += size
+                portfolio[m]['yes_spent'] += (size * price)
+            elif action == 'SELL_YES':
+                portfolio[m]['yes_shares'] -= size
+                if portfolio[m]['yes_shares'] > 0.01:
+                    avg = portfolio[m]['yes_spent'] / (portfolio[m]['yes_shares'] + size)
+                    portfolio[m]['yes_spent'] -= (size * avg)
+                else:
+                    portfolio[m]['yes_shares'], portfolio[m]['yes_spent'] = 0.0, 0.0
+            elif action == 'BUY_NO':
+                portfolio[m]['no_shares'] += size
+                portfolio[m]['no_spent'] += (size * price)
+            elif action == 'SELL_NO':
+                portfolio[m]['no_shares'] -= size
+                if portfolio[m]['no_shares'] > 0.01:
+                    avg = portfolio[m]['no_spent'] / (portfolio[m]['no_shares'] + size)
+                    portfolio[m]['no_spent'] -= (size * avg)
+                else:
+                    portfolio[m]['no_shares'], portfolio[m]['no_spent'] = 0.0, 0.0
+
+    # 2. Check live prices ONLY for markets where we actually own shares
+    open_positions = False
+    for market, data in portfolio.items():
+        if data['yes_shares'] > 0.1 or data['no_shares'] > 0.1:
+            open_positions = True
+            
+            try:
+                # Dynamically search Gamma for the exact market we own
+                encoded_market = urllib.parse.quote(market)
+                search_url = f"https://gamma-api.polymarket.com/markets?question={encoded_market}"
+                result = requests.get(search_url).json()
+                
+                if result and len(result) > 0:
+                    target_market_data = result[0]
+                    token_ids = json.loads(target_market_data.get("clobTokenIds", "[]"))
+                    yes_token_id = token_ids[0]
+                    
+                    buy_data = client.get_price(yes_token_id, side="BUY")
+                    sell_data = client.get_price(yes_token_id, side="SELL")
+                    best_ask = float(buy_data.get('price', 1.0))
+                    best_bid = float(sell_data.get('price', 0.0))
+                    live_yes_price = round((best_bid + best_ask) / 2, 3)
+                    
+                    # Pass it to your existing profit checking function
+                    check_take_profit(market, live_yes_price)
+                else:
+                    print(f"  - Could not locate live data for: {market}")
+            except Exception as e:
+                print(f"  - API Error checking {market}: {e}")
+                
+    if not open_positions:
+        print("  - No open positions currently held.")
+
+# Execute the manager immediately!
+manage_open_positions()
+
+# =========================================================================
+# --- 3. MULTI-CATEGORY BATCH SCREENER ---
+# (Your existing scanning code and Master Loop goes down here!)
+# (Make sure to DELETE the check_take_profit() line from inside the loop!)
+# =========================================================================
 # --- 2. PORTFOLIO MANAGER FUNCTIONS ---
 def execute_paper_sell(market, size, price, reason, action_type):
     with open("paper_trades.csv", mode='a', newline='', encoding='utf-8') as file:
