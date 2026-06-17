@@ -47,7 +47,7 @@ client = ClobClient(
 )
 
 # --- 2. EXECUTION & LOGGING UTILITIES ---
-def execute_paper_sell(market, size, price, reason, action_type):
+def execute_paper_sell(market, size, price, reason, action_type, token_id):
     with open("paper_trades.csv", mode='a', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
         writer.writerow([
@@ -57,7 +57,7 @@ def execute_paper_sell(market, size, price, reason, action_type):
             size,
             "MAKER (Exit Protocol)",
             price,
-            "N/A", 
+            token_id, # <-- Hardcodes the exact asset token ID
             reason
         ])
     print(f"💾 {action_type} Order successfully logged to ledger.")
@@ -128,56 +128,65 @@ def check_take_profit(target_market, live_yes_price):
 
 # --- 3. DECOUPLED PORTFOLIO ENGINE ---
 def manage_open_positions():
-    print("\n💼 WAKING UP PORTFOLIO MANAGER...")
+    print("\n💼 WAKING UP PORTFOLIO MANAGER (TOKEN ID PROTOCOL)...")
     csv_filename = "paper_trades.csv"
     if not os.path.exists(csv_filename):
         print("  - No active positions to track.")
         return
 
     portfolio = {}
+    
+    # 1. Read ledger and group strictly by the unique asset
     with open(csv_filename, mode='r', encoding='utf-8') as file:
         reader = csv.DictReader(file)
         for row in reader:
-            m = row['Market']
-            if m not in portfolio:
-                portfolio[m] = {'yes_shares': 0.0, 'no_shares': 0.0}
-            size = float(row['Size'])
+            market = row['Market']
             action = row['Action']
-            if action == 'BUY_YES': portfolio[m]['yes_shares'] += size
-            elif action == 'SELL_YES': portfolio[m]['yes_shares'] -= size
-            elif action == 'BUY_NO': portfolio[m]['no_shares'] += size
-            elif action == 'SELL_NO': portfolio[m]['no_shares'] -= size
+            size = float(row['Size'])
+            price = float(row['Execution Price'])
+            
+            if market not in portfolio:
+                portfolio[market] = {'yes_shares': 0.0, 'yes_spent': 0.0, 'no_shares': 0.0, 'no_spent': 0.0}
+                
+            if action == 'BUY_YES':
+                portfolio[market]['yes_shares'] += size
+                portfolio[market]['yes_spent'] += (size * price)
+            elif action == 'SELL_YES':
+                portfolio[market]['yes_shares'] -= size
+            elif action == 'BUY_NO':
+                portfolio[market]['no_shares'] += size
+                portfolio[market]['no_spent'] += (size * price)
+            elif action == 'SELL_NO':
+                portfolio[market]['no_shares'] -= size
 
-    open_positions = False
+    # 2. Direct Order Book Call (Bypasses text query ambiguity)
     for market, data in portfolio.items():
         if data['yes_shares'] > 0.1 or data['no_shares'] > 0.1:
-            open_positions = True
+            print(f"📡 Auditing Asset book for: '{market[:40]}...'")
             try:
-                encoded_market = urllib.parse.quote(market)
-                search_url = f"https://gamma-api.polymarket.com/markets?question={encoded_market}"
-                result = requests.get(search_url).json()
+                # Pull the full live 500 options from Gamma to isolate the EXACT market object
+                url = "https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=500"
+                markets = requests.get(url).json()
                 
-                if result and len(result) > 0:
-                    target_market_data = result[0]
-                    raw_ids = target_market_data.get("clobTokenIds", "[]")
-                    token_ids = json.loads(raw_ids) if isinstance(raw_ids, str) else raw_ids
-                    
-                    buy_data = client.get_price(token_ids[0], side="BUY")
-                    sell_data = client.get_price(token_ids[0], side="SELL")
-                    best_ask = float(buy_data.get('price', 1.0))
-                    best_bid = float(sell_data.get('price', 0.0))
-                    live_yes_price = round((best_bid + best_ask) / 2, 3)
-                    
-                    check_take_profit(market, live_yes_price)
-                else:
-                    print(f"  - Could not pull pricing for asset: {market}")
+                for target_market_data in markets:
+                    if target_market_data.get("question") == market:
+                        raw_ids = target_market_data.get("clobTokenIds", "[]")
+                        token_ids = json.loads(raw_ids) if isinstance(raw_ids, str) else raw_ids
+                        
+                        # Fetch the direct cryptographic orderbook price
+                        buy_data = client.get_price(token_ids[0], side="BUY")
+                        sell_data = client.get_price(token_ids[0], side="SELL")
+                        best_ask = float(buy_data.get('price', 1.0))
+                        best_bid = float(sell_data.get('price', 0.0))
+                        live_yes_price = round((best_bid + best_ask) / 2, 3)
+                        
+                        # Calmly check the real take profit math
+                        check_take_profit(market, live_yes_price)
+                        break
             except Exception as e:
-                print(f"  - Error pulling position details: {e}")
-                
-    if not open_positions:
-        print("  - No active open positions currently found.")
+                print(f"  - Risk validation error: {e}")
 
-# Run the account audit first
+# Run the account audit immediately!
 manage_open_positions()
 
 # --- 4. MULTI-CATEGORY BATCH SCREENER ---
