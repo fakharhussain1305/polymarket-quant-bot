@@ -132,7 +132,9 @@ def check_take_profit(target_market, live_yes_price):
 # --- 3. MULTI-CATEGORY BATCH SCREENER ---
 print("📡 Scanning Polymarket for serious Macro & Tech opportunities...")
 try:
-    markets = requests.get("https://gamma-api.polymarket.com/markets?active=true&closed=false").json()
+    # THE FIX: Added &limit=500 to pull a massive dataset instead of just Page 1!
+    url = "https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=500"
+    markets = requests.get(url).json()
 except Exception as e:
     print(f"❌ Failed to connect to Gamma API: {e}")
     sys.exit()
