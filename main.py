@@ -107,10 +107,10 @@ def check_take_profit(target_market, live_yes_price):
         
         if roi_yes >= 0.15:
             print("🚀 TAKE PROFIT TRIGGERED! Locking in 15%+ gains on YES.")
-            execute_paper_sell(target_market, yes_shares, live_yes_price, f"Take Profit triggered at {roi_yes*100:.1f}% ROI", "SELL_YES")
+            execute_paper_sell(target_market, yes_shares, live_yes_price, f"Take Profit triggered at {roi_yes*100:.1f}% ROI", "SELL_YES", "N/A")
         elif roi_yes <= -0.20:
             print("🛑 STOP LOSS TRIGGERED! Cutting losses at -20% on YES.")
-            execute_paper_sell(target_market, yes_shares, live_yes_price, f"Stop Loss triggered at {roi_yes*100:.1f}% ROI", "SELL_YES")
+            execute_paper_sell(target_market, yes_shares, live_yes_price, f"Stop Loss triggered at {roi_yes*100:.1f}% ROI", "SELL_YES", "N/A")
 
     # NO Evaluation
     if no_shares > 0.1:
