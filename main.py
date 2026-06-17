@@ -16,7 +16,7 @@ from tavily import TavilyClient
 # ⚙️ BOT CONFIGURATION (Optimized)
 # ==========================================
 DRY_RUN = True       # Set to False to execute real trades on-chain
-MIN_VOLUME = 0  # Lowered to capture emerging setups early
+MIN_VOLUME = 10000.0  # Lowered to capture emerging setups early
 MAX_SPREAD = 0.12     # Adjusted for dynamic liquidity constraints
 
 # Strict filtering to discard noise, memes, and long-term locked attention bets
