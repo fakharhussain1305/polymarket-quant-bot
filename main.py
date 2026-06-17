@@ -32,7 +32,7 @@ TARGET_SECTORS = {
     "crypto": ["bitcoin", "btc", "ethereum", "eth", "etf", "sec", "solana", "sol", "crypto", "binance", "airdrop"],
     "bio-pharma": ["fda", "approval", "clinical trial", "phase 3", "vaccine", "cdc"],
     "science and space": ["boeing", "starliner", "nasa", "cern", "nuclear", "fusion", "launch"]
-    
+   
 }
 # ==========================================
 
