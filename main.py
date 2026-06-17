@@ -191,13 +191,29 @@ manage_open_positions()
 
 # --- 4. MULTI-CATEGORY BATCH SCREENER ---
 print("\n📡 Scanning Polymarket for serious Macro & Tech opportunities...")
+
+markets = []
 try:
-    url = "https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=500"
-    markets = requests.get(url).json()
+    # THE CRAWLER: Fetch 5 pages of 100 markets each (500 Total Markets)
+    for i in range(5):
+        offset = i * 100
+        url = f"https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=100&offset={offset}"
+        response = requests.get(url).json()
+        
+        # If the API returns a list, add it to our master dataset
+        if isinstance(response, list):
+            markets.extend(response)
+        
+        # Micro-pause so Polymarket doesn't ban our IP for spamming requests
+        time.sleep(0.2)
+        
+    print(f"  - Successfully downloaded {len(markets)} active markets from orderbook.")
 except Exception as e:
     print(f"❌ Failed to connect to Gamma API: {e}")
     sys.exit()
 
+viable_opportunities = []
+# ... (The rest of your `for market in markets:` loop stays exactly the same!)
 viable_opportunities = []
 
 for market in markets:
