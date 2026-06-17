@@ -185,9 +185,23 @@ def manage_open_positions():
                         break
             except Exception as e:
                 print(f"  - Risk validation error: {e}")
+# ... [Existing API Exception Catch] ...
+            except Exception as e:
+                print(f"  - Risk validation error: {e}")
+                
+    if not open_positions:
+        print("  - No active open positions currently found.")
 
+    # >>> ADD THIS EXACTLY HERE <<<
+    # Return a list of markets where we currently hold shares
+    return [m for m, d in portfolio.items() if d['yes_shares'] > 0.1 or d['no_shares'] > 0.1]
 # Run the account audit immediately!
-manage_open_positions()
+# Run the account audit first, and save the list of what we own!
+owned_markets = manage_open_positions()
+
+# (If the ledger doesn't exist yet, make sure it's an empty list)
+if owned_markets is None: 
+    owned_markets = []
 
 # --- 4. MULTI-CATEGORY BATCH SCREENER ---
 print("\n📡 Scanning Polymarket for serious Macro & Tech opportunities...")
@@ -219,6 +233,9 @@ viable_opportunities = []
 for market in markets:
     title = market.get("question", "").lower()
     volume = float(market.get("volume", 0.0))
+
+    # >>> ADD THIS 1 LINE HERE <<<
+    if market.get("question") in owned_markets: continue
 
     if volume < MIN_VOLUME: continue
     if any(bl in title for bl in BLACKLIST_KEYWORDS): continue
