@@ -107,6 +107,7 @@ def check_take_profit(target_market, live_yes_price):
         
         if roi_yes >= 0.15:
             print("🚀 TAKE PROFIT TRIGGERED! Locking in 15%+ gains on YES.")
+            # FIX 1: Added "N/A" as the 6th argument
             execute_paper_sell(target_market, yes_shares, live_yes_price, f"Take Profit triggered at {roi_yes*100:.1f}% ROI", "SELL_YES", "N/A")
         elif roi_yes <= -0.20:
             print("🛑 STOP LOSS TRIGGERED! Cutting losses at -20% on YES.")
@@ -121,10 +122,11 @@ def check_take_profit(target_market, live_yes_price):
         
         if roi_no >= 0.15:
             print("🚀 TAKE PROFIT TRIGGERED! Locking in gains on NO.")
-            execute_paper_sell(target_market, no_shares, live_no_price, f"Take Profit triggered at {roi_no*100:.1f}% ROI", "SELL_NO")
+            # FIX 1: Added "N/A" as the 6th argument
+            execute_paper_sell(target_market, no_shares, live_no_price, f"Take Profit triggered at {roi_no*100:.1f}% ROI", "SELL_NO", "N/A")
         elif roi_no <= -0.20:
             print("🛑 STOP LOSS TRIGGERED! Cutting losses on NO.")
-            execute_paper_sell(target_market, no_shares, live_no_price, f"Stop Loss triggered at {roi_no*100:.1f}% ROI", "SELL_NO")
+            execute_paper_sell(target_market, no_shares, live_no_price, f"Stop Loss triggered at {roi_no*100:.1f}% ROI", "SELL_NO", "N/A")
 
 # --- 3. DECOUPLED PORTFOLIO ENGINE ---
 def manage_open_positions():
@@ -132,11 +134,9 @@ def manage_open_positions():
     csv_filename = "paper_trades.csv"
     if not os.path.exists(csv_filename):
         print("  - No active positions to track.")
-        return
+        return []
 
     portfolio = {}
-    
-    # 1. Read ledger and group strictly by the unique asset
     with open(csv_filename, mode='r', encoding='utf-8') as file:
         reader = csv.DictReader(file)
         for row in reader:
@@ -159,12 +159,14 @@ def manage_open_positions():
             elif action == 'SELL_NO':
                 portfolio[market]['no_shares'] -= size
 
-    # 2. Direct Order Book Call (Bypasses text query ambiguity)
+    # FIX 2: Define open_positions BEFORE the loop!
+    open_positions = False 
+
     for market, data in portfolio.items():
         if data['yes_shares'] > 0.1 or data['no_shares'] > 0.1:
+            open_positions = True
             print(f"📡 Auditing Asset book for: '{market[:40]}...'")
             try:
-                # Pull the full live 500 options from Gamma to isolate the EXACT market object
                 url = "https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=500"
                 markets = requests.get(url).json()
                 
@@ -173,33 +175,24 @@ def manage_open_positions():
                         raw_ids = target_market_data.get("clobTokenIds", "[]")
                         token_ids = json.loads(raw_ids) if isinstance(raw_ids, str) else raw_ids
                         
-                        # Fetch the direct cryptographic orderbook price
                         buy_data = client.get_price(token_ids[0], side="BUY")
                         sell_data = client.get_price(token_ids[0], side="SELL")
                         best_ask = float(buy_data.get('price', 1.0))
                         best_bid = float(sell_data.get('price', 0.0))
                         live_yes_price = round((best_bid + best_ask) / 2, 3)
                         
-                        # Calmly check the real take profit math
                         check_take_profit(market, live_yes_price)
                         break
-            except Exception as e:
-                print(f"  - Risk validation error: {e}")
-# ... [Existing API Exception Catch] ...
             except Exception as e:
                 print(f"  - Risk validation error: {e}")
                 
     if not open_positions:
         print("  - No active open positions currently found.")
 
-    # >>> ADD THIS EXACTLY HERE <<<
-    # Return a list of markets where we currently hold shares
     return [m for m, d in portfolio.items() if d['yes_shares'] > 0.1 or d['no_shares'] > 0.1]
-# Run the account audit immediately!
+
 # Run the account audit first, and save the list of what we own!
 owned_markets = manage_open_positions()
-
-# (If the ledger doesn't exist yet, make sure it's an empty list)
 if owned_markets is None: 
     owned_markets = []
 
