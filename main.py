@@ -164,7 +164,13 @@ for market in markets:
         spread = best_ask - best_bid
         current_price = round((best_bid + best_ask) / 2, 3)
 
-        if spread > MAX_SPREAD or current_price < 0.10 or current_price > 0.90:
+        # --- THE X-RAY DEBUGER ---
+        if current_price < 0.10 or current_price > 0.90:
+            print(f"  [X] Ignored '{title[:40]}...' (Price {current_price} too extreme)")
+            continue
+            
+        if spread > MAX_SPREAD:
+            print(f"  [X] Ignored '{title[:40]}...' (Spread {spread:.3f} too wide)")
             continue
 
         viable_opportunities.append({
@@ -176,7 +182,8 @@ for market in markets:
             "yes_token_id": yes_token_id,
             "no_token_id": no_token_id
         })
-    except: 
+    except Exception as e: 
+        print(f"  [!] API Error on '{title[:40]}...': {e}")
         continue
 
 if not viable_opportunities:
