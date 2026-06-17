@@ -15,8 +15,8 @@ from tavily import TavilyClient
 # ⚙️ BOT CONFIGURATION (Optimized)
 # ==========================================
 DRY_RUN = True       # Set to False to execute real trades on-chain
-MIN_VOLUME = 25000.0  # Lowered slightly to capture emerging high-value tech/macro setups
-MAX_SPREAD = 0.08     # Maximum allowed gap between buy/sell price
+MIN_VOLUME = 10000.0  # Lowered slightly to capture emerging high-value tech/macro setups
+MAX_SPREAD = 0.12     # Maximum allowed gap between buy/sell price
 
 # Strict filtering to discard noise, memes, and long-term locked attention bets
 BLACKLIST_KEYWORDS = [
@@ -27,9 +27,12 @@ BLACKLIST_KEYWORDS = [
 
 # Broadened core tokens to catch variations like "MegaETH" or "Wrapped BTC"
 TARGET_SECTORS = {
-    "macro": ["fed", "rate", "inflation", "cpi", "recession", "interest", "powell", "fomc"],
+    "macro": ["fed", "rate", "inflation", "cpi", "recession", "interest", "powell", "fomc", "gdp", "nfp", "unemployment", "jobs report", "ecb", "sec", "gensler"],
     "tech": ["openai", "gpt", "apple", "nvidia", "spacex", "sam altman", "anthropic", "ai", "meta"],
-    "crypto": ["bitcoin", "btc", "ethereum", "eth", "etf", "sec", "solana", "sol", "crypto", "binance", "airdrop"]
+    "crypto": ["bitcoin", "btc", "ethereum", "eth", "etf", "sec", "solana", "sol", "crypto", "binance", "airdrop"],
+    "bio-pharma": ["fda", "approval", "clinical trial", "phase 3", "vaccine", "cdc"],
+    "science and space": ["boeing", "starliner", "nasa", "cern", "nuclear", "fusion", "launch"]
+    
 }
 # ==========================================
 
