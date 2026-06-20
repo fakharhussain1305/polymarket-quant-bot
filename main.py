@@ -341,8 +341,10 @@ if not candidates:
     sys.exit()
 
 # Sort by volume, take top 5
+import random
 candidates.sort(key=lambda x: float(x.get("volume", 0)), reverse=True)
-targets = candidates[:5]
+top_candidates = candidates[:20]
+targets = random.sample(top_candidates, min(5, len(top_candidates)))
 
 # Step 5: Analyse and trade
 for market in targets:
