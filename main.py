@@ -208,8 +208,10 @@ def audit_open_positions(portfolio, markets_cache):
 # ==========================================
 def fetch_markets():
     markets = []
+    import random
+    start_page = random.randint(0, 10)
     for i in range(5):
-        offset = i * 100
+        offset = (start_page + i) * 100
         url = f"https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=100&offset={offset}"
         try:
             resp = requests.get(url, timeout=10).json()
