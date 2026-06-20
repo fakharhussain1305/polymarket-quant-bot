@@ -179,10 +179,12 @@ def audit_open_positions(portfolio, markets_cache):
                 print(f"  🚀 TAKE PROFIT — selling YES at ${mid_yes}")
                 log_trade(market_q, 'SELL_YES', pos['yes_shares'], mid_yes,
                          'EXIT (Take Profit)', 'N/A', f'TP at {roi*100:.1f}% ROI')
+                set_cooldown(market_q, cooldowns)
             elif roi <= -STOP_LOSS:
                 print(f"  🛑 STOP LOSS — selling YES at ${mid_yes}")
                 log_trade(market_q, 'SELL_YES', pos['yes_shares'], mid_yes,
                          'EXIT (Stop Loss)', 'N/A', f'SL at {roi*100:.1f}% ROI')
+                set_cooldown(market_q, cooldowns)
 
         # NO position check
         if pos['no_shares'] > 0.01:
@@ -194,10 +196,12 @@ def audit_open_positions(portfolio, markets_cache):
                 print(f"  🚀 TAKE PROFIT — selling NO at ${mid_no}")
                 log_trade(market_q, 'SELL_NO', pos['no_shares'], mid_no,
                          'EXIT (Take Profit)', 'N/A', f'TP at {roi*100:.1f}% ROI')
+                set_cooldown(market_q, cooldowns)
             elif roi <= -STOP_LOSS:
                 print(f"  🛑 STOP LOSS — selling NO at ${mid_no}")
                 log_trade(market_q, 'SELL_NO', pos['no_shares'], mid_no,
                          'EXIT (Stop Loss)', 'N/A', f'SL at {roi*100:.1f}% ROI')
+                set_cooldown(market_q, cooldowns)
 
 # ==========================================
 # MARKET SCANNER
