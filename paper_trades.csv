@@ -81,3 +81,24 @@ Timestamp,Market,Action,Size,Routing,Execution Price,AI Probability,Reasoning
 2026-06-27 23:11:10,Ukraine signs peace deal with Russia before 2027?,SELL_NO,10.0,EXIT (Stop Loss),0.735,N/A,SL at 2.1% ROI
 2026-06-27 23:11:10,Will OpenAI IPO by December 31 2026?,SELL_YES,0.0,EXIT (Stop Loss),0.235,N/A,SL at 0.7% ROI
 2026-06-27 23:11:10,Will OpenAI IPO by December 31 2026?,SELL_NO,10.0,EXIT (Stop Loss),0.765,N/A,SL at 0.7% ROI
+2026-06-27 23:44:13,"Will Bitcoin dip to $45,000 by December 31, 2026?",SELL_YES,10.0,EXIT (Stop Loss),0.445,N/A,SL at 5.7% ROI
+2026-06-27 23:44:13,"Will Bitcoin dip to $45,000 by December 31, 2026?",SELL_NO,0.0,EXIT (Stop Loss),0.555,N/A,SL at 5.7% ROI
+2026-06-27 23:44:14,"Will Bitcoin dip to $35,000 by December 31, 2026?",SELL_YES,10.0,EXIT (Stop Loss),0.17,N/A,SL at -6.1% ROI
+2026-06-27 23:44:14,"Will Bitcoin dip to $35,000 by December 31, 2026?",SELL_NO,0.0,EXIT (Stop Loss),0.83,N/A,SL at -6.1% ROI
+2026-06-27 23:44:14,AI bubble burst in 2026?,SELL_YES,10.0,EXIT (Stop Loss),0.188,N/A,SL at -10.0% ROI
+2026-06-27 23:44:14,AI bubble burst in 2026?,SELL_NO,0.0,EXIT (Stop Loss),0.812,N/A,SL at -10.0% ROI
+2026-06-27 23:44:14,OpenAI IPO before 2027?,SELL_YES,10.0,EXIT (Stop Loss),0.285,N/A,SL at -5.0% ROI
+2026-06-27 23:44:14,OpenAI IPO before 2027?,SELL_NO,0.0,EXIT (Stop Loss),0.715,N/A,SL at -5.0% ROI
+2026-06-27 23:44:15,"Kraken IPO by December 31, 2026?",SELL_YES,10.0,EXIT (Stop Loss),0.295,N/A,SL at 5.4% ROI
+2026-06-27 23:44:15,"Kraken IPO by December 31, 2026?",SELL_NO,0.0,EXIT (Stop Loss),0.705,N/A,SL at 5.4% ROI
+2026-06-27 23:44:15,Databricks IPO before 2027?,SELL_YES,0.0,EXIT (Stop Loss),0.17,N/A,SL at 2.5% ROI
+2026-06-27 23:44:15,Databricks IPO before 2027?,SELL_NO,10.0,EXIT (Stop Loss),0.83,N/A,SL at 2.5% ROI
+2026-06-27 23:44:16,Will 2026 be the second-hottest year on record?,SELL_YES,10.0,EXIT (Stop Loss),0.715,N/A,SL at -6.0% ROI
+2026-06-27 23:44:16,Will 2026 be the second-hottest year on record?,SELL_NO,0.0,EXIT (Stop Loss),0.285,N/A,SL at -6.0% ROI
+2026-06-27 23:44:16,"Will Bitcoin reach $100,000 by December 31, 2026?",SELL_YES,10.0,EXIT (Stop Loss),0.125,N/A,SL at 4.2% ROI
+2026-06-27 23:44:16,"Will Bitcoin reach $100,000 by December 31, 2026?",SELL_NO,0.0,EXIT (Stop Loss),0.875,N/A,SL at 4.2% ROI
+2026-06-27 23:44:16,Will Ukraine agree to cede territory to Russia before 2027?,SELL_YES,0.0,EXIT (Stop Loss),0.145,N/A,SL at 0.6% ROI
+2026-06-27 23:44:16,Will Ukraine agree to cede territory to Russia before 2027?,SELL_NO,10.0,EXIT (Stop Loss),0.855,N/A,SL at 0.6% ROI
+2026-06-27 23:44:17,"Will Ethereum dip to $1,000 by December 31, 2026?",SELL_YES,10.0,EXIT (Stop Loss),0.255,N/A,SL at 1.6% ROI
+2026-06-27 23:44:17,"Will Ethereum dip to $1,000 by December 31, 2026?",SELL_NO,0.0,EXIT (Stop Loss),0.745,N/A,SL at 1.6% ROI
+2026-06-27 23:44:31,"Will Bitcoin dip to $55,000 by December 31, 2026?",BUY_NO,10.0,TAKER,0.22,70.0%,"The news indicates a strong consensus among prediction market traders and analysts that Bitcoin is likely to dip below $55,000 by the end of 2026. Key points include: 1) Historical patterns and halving cycles suggest a bottom in the $50,000-$55,000 range in late 2026. 2) Prediction markets on platforms like Kalshi and Polymarket imply a 66% to 67% chance of Bitcoin falling below $55,000. 3) Institutional outflows and reduced demand are contributing to bearish sentiment. 4) The current YES price implies a 77% probability, which aligns closely with the consensus from prediction markets and analysts. Therefore, the true probability is estimated to be slightly lower than the market's current implied probability."
