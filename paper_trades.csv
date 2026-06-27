@@ -63,3 +63,21 @@ Timestamp,Market,Action,Size,Routing,Execution Price,AI Probability,Reasoning
 2026-06-27 09:16:04,"Will OpenAI not IPO by December 31, 2026?",SELL_NO,10.0,EXIT (Stop Loss),0.23,N/A,SL at -56.7% ROI
 2026-06-27 15:03:25,Will OpenAI IPO by December 31 2026?,BUY_NO,10.0,TAKER,0.76,15.0%,"The news indicates that OpenAI has filed confidentially for an IPO, which is generally a positive indicator for a potential IPO by the end of 2026. However, there are significant factors suggesting a delay. OpenAI is considering delaying its IPO to 2027 due to the volatile public tech market and the rocky debut of SpaceX, which has affected market sentiment. Additionally, OpenAI's CEO Sam Altman is unwilling to compromise on a $1 trillion valuation, which may not be achievable in the current market conditions. These factors suggest a lower probability of an IPO by the end of 2026 than the market's current 23% probability."
 2026-06-27 19:57:28,"Kraken IPO by December 31, 2026?",BUY_YES,10.0,TAKER,0.28,65.0%,"Kraken has confidentially filed for an IPO in November 2025, targeting a late 2026 listing. The company has raised $800 million at a $20 billion valuation, indicating strong financial backing. However, the IPO plan is currently on hold due to difficult market conditions, and the company has not disclosed exact timing. The news suggests a high probability of completion by December 31, 2026, at 81.5%, but the market price implies only a 29.5% probability. Given the ongoing regulatory review and the company's strategic importance in the crypto sector, the true probability is likely higher than the market's current assessment."
+2026-06-27 23:11:07,Will no Fed rate cuts happen in 2026?,SELL_YES,10.0,EXIT (Stop Loss),0.772,N/A,SL at -4.9% ROI
+2026-06-27 23:11:07,Will no Fed rate cuts happen in 2026?,SELL_NO,0.0,EXIT (Stop Loss),0.228,N/A,SL at -4.9% ROI
+2026-06-27 23:11:07,Will 1 Fed rate cut happen in 2026?,SELL_YES,0.0,EXIT (Stop Loss),0.125,N/A,SL at 10.8% ROI
+2026-06-27 23:11:07,Will 1 Fed rate cut happen in 2026?,SELL_NO,20.0,EXIT (Stop Loss),0.875,N/A,SL at 10.8% ROI
+2026-06-27 23:11:08,Opensea FDV above $500M one day after launch?,SELL_YES,10.0,EXIT (Stop Loss),0.422,N/A,SL at -0.5% ROI
+2026-06-27 23:11:08,Opensea FDV above $500M one day after launch?,SELL_NO,10.0,EXIT (Stop Loss),0.578,N/A,SL at -0.5% ROI
+2026-06-27 23:11:08,Opensea FDV above $500M one day after launch?,SELL_YES,10.0,EXIT (Stop Loss),0.422,N/A,SL at 0.9% ROI
+2026-06-27 23:11:08,Opensea FDV above $500M one day after launch?,SELL_NO,10.0,EXIT (Stop Loss),0.578,N/A,SL at 0.9% ROI
+2026-06-27 23:11:08,Opensea FDV above $1B one day after launch?,SELL_YES,0.0,EXIT (Stop Loss),0.2,N/A,SL at 2.6% ROI
+2026-06-27 23:11:08,Opensea FDV above $1B one day after launch?,SELL_NO,10.0,EXIT (Stop Loss),0.8,N/A,SL at 2.6% ROI
+2026-06-27 23:11:09,US recession by end of 2026?,SELL_YES,10.0,EXIT (Stop Loss),0.115,N/A,SL at -11.5% ROI
+2026-06-27 23:11:09,US recession by end of 2026?,SELL_NO,0.0,EXIT (Stop Loss),0.885,N/A,SL at -11.5% ROI
+2026-06-27 23:11:09,Will OpenAI’s market cap be $1.5T or greater at market close on IPO day?,SELL_YES,0.0,EXIT (Stop Loss),0.025,N/A,SL at 15.0% ROI
+2026-06-27 23:11:09,Will OpenAI’s market cap be $1.5T or greater at market close on IPO day?,SELL_NO,10.0,EXIT (Stop Loss),0.975,N/A,SL at 15.0% ROI
+2026-06-27 23:11:10,Ukraine signs peace deal with Russia before 2027?,SELL_YES,0.0,EXIT (Stop Loss),0.265,N/A,SL at 2.1% ROI
+2026-06-27 23:11:10,Ukraine signs peace deal with Russia before 2027?,SELL_NO,10.0,EXIT (Stop Loss),0.735,N/A,SL at 2.1% ROI
+2026-06-27 23:11:10,Will OpenAI IPO by December 31 2026?,SELL_YES,0.0,EXIT (Stop Loss),0.235,N/A,SL at 0.7% ROI
+2026-06-27 23:11:10,Will OpenAI IPO by December 31 2026?,SELL_NO,10.0,EXIT (Stop Loss),0.765,N/A,SL at 0.7% ROI
