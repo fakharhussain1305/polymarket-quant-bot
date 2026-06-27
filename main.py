@@ -186,14 +186,14 @@ def audit_open_positions(portfolio, markets_cache):
                          'EXIT (Stop Loss)', 'N/A', f'SL at {roi*100:.1f}% ROI')
                 set_cooldown(market_q, cooldowns)# After logging SELL_YES stop loss:
                 # After logging SELL_YES stop loss:
-log_trade(market_q, 'SELL_YES', pos['yes_shares'], mid_yes,
-         'EXIT (Stop Loss)', 'N/A', f'SL at {roi*100:.1f}% ROI')
-set_cooldown(market_q, cooldowns)  # ADD THIS
+            log_trade(market_q, 'SELL_YES', pos['yes_shares'], mid_yes,
+            'EXIT (Stop Loss)', 'N/A', f'SL at {roi*100:.1f}% ROI')
+            set_cooldown(market_q, cooldowns)  # ADD THIS
 
 # After logging SELL_NO stop loss:
-log_trade(market_q, 'SELL_NO', pos['no_shares'], mid_no,
-         'EXIT (Stop Loss)', 'N/A', f'SL at {roi*100:.1f}% ROI')
-set_cooldown(market_q, cooldowns)  # ADD THIS
+            log_trade(market_q, 'SELL_NO', pos['no_shares'], mid_no,
+            'EXIT (Stop Loss)', 'N/A', f'SL at {roi*100:.1f}% ROI')
+            set_cooldown(market_q, cooldowns)  # ADD THIS
 
         # NO position check
         if pos['no_shares'] > 0.01:
@@ -212,14 +212,14 @@ set_cooldown(market_q, cooldowns)  # ADD THIS
                          'EXIT (Stop Loss)', 'N/A', f'SL at {roi*100:.1f}% ROI')
                 set_cooldown(market_q, cooldowns)
                 # After logging SELL_YES stop loss:
-log_trade(market_q, 'SELL_YES', pos['yes_shares'], mid_yes,
+            log_trade(market_q, 'SELL_YES', pos['yes_shares'], mid_yes,
          'EXIT (Stop Loss)', 'N/A', f'SL at {roi*100:.1f}% ROI')
-set_cooldown(market_q, cooldowns)  # ADD THIS
+            set_cooldown(market_q, cooldowns)  # ADD THIS
 
 # After logging SELL_NO stop loss:
-log_trade(market_q, 'SELL_NO', pos['no_shares'], mid_no,
+            log_trade(market_q, 'SELL_NO', pos['no_shares'], mid_no,
          'EXIT (Stop Loss)', 'N/A', f'SL at {roi*100:.1f}% ROI')
-set_cooldown(market_q, cooldowns)  # ADD THIS
+            set_cooldown(market_q, cooldowns)  # ADD THIS
 
 # ==========================================
 # MARKET SCANNER
