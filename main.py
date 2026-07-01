@@ -1,4 +1,5 @@
-import os, sys, json, time, csv, requests
+import os, sys, json, time, csv, random
+import requests
 from datetime import datetime, timedelta
 from py_clob_client.client import ClobClient
 from py_clob_client.clob_types import OrderArgs, OrderType
@@ -16,22 +17,35 @@ POSITION_SIZE = 10.0
 TAKE_PROFIT = 0.15
 STOP_LOSS = 0.20
 EDGE_THRESHOLD = 0.15
-MARKET_COOLDOWN_HOURS = 6  # Don't re-analyse a market for 6 hours after HOLD
+MARKET_COOLDOWN_HOURS = 6          # cooldown after a HOLD decision
+POST_EXIT_COOLDOWN_HOURS = 24      # cooldown after ANY closed position (TP or SL)
+CONFLICT_SIMILARITY_THRESHOLD = 0.6
 
 BLACKLIST_KEYWORDS = [
     "gta", "jesus", "christ", "rihanna", "carti", "taiwan",
-    "nba", "nfl", "fifa", "world cup", "stanley cup", "aliens", 
+    "nba", "nfl", "fifa", "world cup", "stanley cup", "aliens",
     "swift", "mrbeast", "drake", "election", "president", "biden",
-    "up or down", "spread:", "o/u", "temperature", "itf", "vs."
+    "up or down", "spread:", "o/u", "temperature", "itf", "vs.",
+    "cubs", "rockies", "royals", "rangers", "astros", "angels",
+    "brewers", "athletics", "sparks", "storm", "knicks", "spurs"
 ]
 
 TARGET_SECTORS = {
-    "macro": ["fed", "rate", "inflation", "cpi", "recession", "interest", 
+    "macro": ["fed", "rate", "inflation", "cpi", "recession", "interest",
               "powell", "fomc", "gdp", "nfp", "unemployment", "ecb"],
-    "tech":  ["openai", "gpt", "apple", "nvidia", "spacex", "anthropic", 
-              "ai", "meta", "bytedance", "mistral", "discord", "ipo"],
-    "crypto": ["bitcoin", "btc", "ethereum", "eth", "etf", "sec", 
+    "tech":  ["openai", "gpt", "apple", "nvidia", "spacex", "anthropic",
+              "ai", "meta", "bytedance", "mistral", "discord", "ipo",
+              "perplexity", "kraken", "opensea"],
+    "crypto": ["bitcoin", "btc", "ethereum", "eth", "etf", "sec",
                "solana", "airdrop", "hyperliquid", "megaeth"]
+}
+
+# Common stop-words that shouldn't count towards market similarity
+STOP_WORDS = {
+    "will", "the", "a", "an", "in", "on", "at", "by", "of", "to",
+    "for", "and", "or", "is", "be", "before", "after", "than",
+    "2026", "2027", "2028", "market", "cap", "price", "than",
+    "reach", "hit", "close"
 }
 
 CSV_FILE = "paper_trades.csv"
@@ -49,13 +63,16 @@ clob_client = ClobClient(
 )
 
 # ==========================================
-# COOLDOWN TRACKER — prevents re-analysing HOLDs
+# COOLDOWN TRACKER
 # ==========================================
 def load_cooldowns():
     if not os.path.exists(COOLDOWN_FILE):
         return {}
-    with open(COOLDOWN_FILE) as f:
-        return json.load(f)
+    try:
+        with open(COOLDOWN_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {}
 
 def save_cooldowns(cooldowns):
     with open(COOLDOWN_FILE, 'w') as f:
@@ -67,15 +84,47 @@ def is_on_cooldown(market_question, cooldowns):
     cooldown_until = datetime.fromisoformat(cooldowns[market_question])
     return datetime.now() < cooldown_until
 
-def set_cooldown(market_question, cooldowns):
-    cooldown_until = datetime.now() + timedelta(hours=MARKET_COOLDOWN_HOURS)
+def set_cooldown(market_question, cooldowns, hours=MARKET_COOLDOWN_HOURS):
+    cooldown_until = datetime.now() + timedelta(hours=hours)
     cooldowns[market_question] = cooldown_until.isoformat()
 
 # ==========================================
-# PORTFOLIO MANAGER — single source of truth
+# FUZZY MARKET CONFLICT DETECTION
+# ==========================================
+def normalise_question(question):
+    words = question.lower().replace("?", "").replace(",", "").split()
+    return set(w for w in words if w not in STOP_WORDS and len(w) > 2)
+
+def markets_conflict(question_a, question_b):
+    """True if two market questions are likely about the same underlying event."""
+    if question_a == question_b:
+        return True
+    words_a = normalise_question(question_a)
+    words_b = normalise_question(question_b)
+    if not words_a or not words_b:
+        return False
+    overlap = words_a & words_b
+    similarity = len(overlap) / min(len(words_a), len(words_b))
+    return similarity > CONFLICT_SIMILARITY_THRESHOLD
+
+def has_conflicting_position(question, portfolio):
+    """Check open positions for a market covering the same underlying question."""
+    for held_market in portfolio.keys():
+        if markets_conflict(question, held_market):
+            return held_market
+    return None
+
+def has_conflicting_cooldown(question, cooldowns):
+    """Check cooldowns (recently closed/held) for the same underlying question."""
+    for cooled_market in cooldowns.keys():
+        if is_on_cooldown(cooled_market, cooldowns) and markets_conflict(question, cooled_market):
+            return cooled_market
+    return None
+
+# ==========================================
+# PORTFOLIO MANAGER
 # ==========================================
 def load_portfolio():
-    """Rebuild portfolio state from CSV. Returns dict of open positions."""
     portfolio = {}
     if not os.path.exists(CSV_FILE):
         return portfolio
@@ -115,7 +164,6 @@ def load_portfolio():
                     p['no_spent']  -= size * avg
                     p['no_shares'] -= size
 
-    # Clean up dust
     return {
         m: d for m, d in portfolio.items()
         if d['yes_shares'] > 0.01 or d['no_shares'] > 0.01
@@ -137,15 +185,14 @@ def log_trade(market, action, size, price, routing, ai_prob, reasoning):
     print(f"  💾 Logged: {action} {size} @ ${price}")
 
 # ==========================================
-# PORTFOLIO AUDIT WITH LIVE PRICES
+# PORTFOLIO AUDIT — TP / SL, now with post-exit cooldown
 # ==========================================
-def audit_open_positions(portfolio, markets_cache):
-    """Check take profit / stop loss on all open positions."""
+def audit_open_positions(portfolio, markets_cache, cooldowns):
     print("\n💼 AUDITING OPEN POSITIONS...")
 
     market_lookup = {m.get('question'): m for m in markets_cache}
 
-    for market_q, pos in portfolio.items():
+    for market_q, pos in list(portfolio.items()):
         market_data = market_lookup.get(market_q)
         if not market_data:
             print(f"  ⚠️  Cannot find live data for: {market_q[:50]}")
@@ -169,6 +216,8 @@ def audit_open_positions(portfolio, markets_cache):
             print(f"  ⚠️  Price fetch error for {market_q[:40]}: {e}")
             continue
 
+        exited = False
+
         # YES position check
         if pos['yes_shares'] > 0.01:
             avg_entry = pos['yes_spent'] / pos['yes_shares']
@@ -179,21 +228,12 @@ def audit_open_positions(portfolio, markets_cache):
                 print(f"  🚀 TAKE PROFIT — selling YES at ${mid_yes}")
                 log_trade(market_q, 'SELL_YES', pos['yes_shares'], mid_yes,
                          'EXIT (Take Profit)', 'N/A', f'TP at {roi*100:.1f}% ROI')
-                set_cooldown(market_q, cooldowns)
+                exited = True
             elif roi <= -STOP_LOSS:
                 print(f"  🛑 STOP LOSS — selling YES at ${mid_yes}")
                 log_trade(market_q, 'SELL_YES', pos['yes_shares'], mid_yes,
                          'EXIT (Stop Loss)', 'N/A', f'SL at {roi*100:.1f}% ROI')
-                set_cooldown(market_q, cooldowns)# After logging SELL_YES stop loss:
-                # After logging SELL_YES stop loss:
-            log_trade(market_q, 'SELL_YES', pos['yes_shares'], mid_yes,
-            'EXIT (Stop Loss)', 'N/A', f'SL at {roi*100:.1f}% ROI')
-            set_cooldown(market_q, cooldowns)  # ADD THIS
-
-# After logging SELL_NO stop loss:
-            log_trade(market_q, 'SELL_NO', pos['no_shares'], mid_no,
-            'EXIT (Stop Loss)', 'N/A', f'SL at {roi*100:.1f}% ROI')
-            set_cooldown(market_q, cooldowns)  # ADD THIS
+                exited = True
 
         # NO position check
         if pos['no_shares'] > 0.01:
@@ -205,29 +245,25 @@ def audit_open_positions(portfolio, markets_cache):
                 print(f"  🚀 TAKE PROFIT — selling NO at ${mid_no}")
                 log_trade(market_q, 'SELL_NO', pos['no_shares'], mid_no,
                          'EXIT (Take Profit)', 'N/A', f'TP at {roi*100:.1f}% ROI')
-                set_cooldown(market_q, cooldowns)
+                exited = True
             elif roi <= -STOP_LOSS:
                 print(f"  🛑 STOP LOSS — selling NO at ${mid_no}")
                 log_trade(market_q, 'SELL_NO', pos['no_shares'], mid_no,
                          'EXIT (Stop Loss)', 'N/A', f'SL at {roi*100:.1f}% ROI')
-                set_cooldown(market_q, cooldowns)
-                # After logging SELL_YES stop loss:
-            log_trade(market_q, 'SELL_YES', pos['yes_shares'], mid_yes,
-         'EXIT (Stop Loss)', 'N/A', f'SL at {roi*100:.1f}% ROI')
-            set_cooldown(market_q, cooldowns)  # ADD THIS
+                exited = True
 
-# After logging SELL_NO stop loss:
-            log_trade(market_q, 'SELL_NO', pos['no_shares'], mid_no,
-         'EXIT (Stop Loss)', 'N/A', f'SL at {roi*100:.1f}% ROI')
-            set_cooldown(market_q, cooldowns)  # ADD THIS
+        # KEY FIX: any closed position — TP or SL — gets a cooldown
+        # so the bot can't immediately re-enter the same or a conflicting market.
+        if exited:
+            set_cooldown(market_q, cooldowns, hours=POST_EXIT_COOLDOWN_HOURS)
+            print(f"  ⏱️  Cooldown set for {POST_EXIT_COOLDOWN_HOURS}h on: {market_q[:45]}")
 
 # ==========================================
 # MARKET SCANNER
 # ==========================================
 def fetch_markets():
     markets = []
-    import random
-    start_page = random.randint(0, 10)
+    start_page = random.randint(0, 10)  # rotate which slice of the market list we see
     for i in range(5):
         offset = (start_page + i) * 100
         url = f"https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=100&offset={offset}"
@@ -238,34 +274,36 @@ def fetch_markets():
             time.sleep(0.2)
         except Exception as e:
             print(f"  ⚠️  Page {i} fetch error: {e}")
-    print(f"  📡 Fetched {len(markets)} markets total")
+    print(f"  📡 Fetched {len(markets)} markets total (starting page {start_page})")
     return markets
 
 def filter_markets(markets, portfolio, cooldowns):
     viable = []
-    open_questions = set(portfolio.keys())
 
     for market in markets:
         title = market.get("question", "").lower()
         question = market.get("question", "")
 
-        # Skip if already holding this market
-        if question in open_questions:
+        if not question:
             continue
 
-        # Skip if on cooldown from a recent HOLD decision
+        # Skip if we hold this market OR anything that conflicts with it
+        conflict = has_conflicting_position(question, portfolio)
+        if conflict:
+            continue
+
+        # Skip if this market or a conflicting one is on cooldown
         if is_on_cooldown(question, cooldowns):
             continue
+        if has_conflicting_cooldown(question, cooldowns):
+            continue
 
-        # Skip blacklisted topics
         if any(bl in title for bl in BLACKLIST_KEYWORDS):
             continue
 
-        # Must match a target sector
         if not any(kw in title for kws in TARGET_SECTORS.values() for kw in kws):
             continue
 
-        # Volume check
         volume = float(market.get("volume", 0.0))
         if volume < MIN_VOLUME:
             continue
@@ -302,9 +340,9 @@ Recent news:
 Instructions:
 1. Use ONLY the news above. Ignore any betting odds references.
 2. Estimate the true probability of YES resolving.
-3. If your estimate exceeds the market by 15%+ → BUY_YES
-4. If your estimate is 15%+ below the market → BUY_NO  
-5. Otherwise → HOLD
+3. If your estimate exceeds the market by 15%+ -> BUY_YES
+4. If your estimate is 15%+ below the market -> BUY_NO
+5. Otherwise -> HOLD
 
 Return ONLY valid JSON:
 {{
@@ -328,118 +366,134 @@ Return ONLY valid JSON:
 # ==========================================
 # MAIN EXECUTION
 # ==========================================
-print("\n" + "="*55)
-print("🤖 QUANT BOT — STARTING RUN")
-print(f"   {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-print("="*55)
+def main():
+    print("\n" + "="*55)
+    print("🤖 QUANT BOT — STARTING RUN")
+    print(f"   {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("="*55)
 
-# Step 1: Load state
-portfolio  = load_portfolio()
-cooldowns  = load_cooldowns()
-print(f"\n📂 Open positions: {len(portfolio)}")
-print(f"⏱️  Markets on cooldown: {len(cooldowns)}")
+    portfolio  = load_portfolio()
+    cooldowns  = load_cooldowns()
+    print(f"\n📂 Open positions: {len(portfolio)}")
+    print(f"⏱️  Markets on cooldown: {len(cooldowns)}")
 
-# Step 2: Fetch all markets (used for both audit and scan)
-print("\n📡 Fetching live markets...")
-all_markets = fetch_markets()
+    print("\n📡 Fetching live markets...")
+    all_markets = fetch_markets()
 
-# Step 3: Audit open positions first
-if portfolio:
-    audit_open_positions(portfolio, all_markets)
-    portfolio = load_portfolio()  # Reload after any exits
+    if portfolio:
+        audit_open_positions(portfolio, all_markets, cooldowns)
+        save_cooldowns(cooldowns)          # persist any post-exit cooldowns immediately
+        portfolio = load_portfolio()       # reload after any exits
 
-# Step 4: Find new opportunities
-print("\n🔍 SCANNING FOR NEW OPPORTUNITIES...")
-candidates = filter_markets(all_markets, portfolio, cooldowns)
-print(f"  ✅ {len(candidates)} candidates passed filters")
+    print("\n🔍 SCANNING FOR NEW OPPORTUNITIES...")
+    candidates = filter_markets(all_markets, portfolio, cooldowns)
+    print(f"  ✅ {len(candidates)} candidates passed filters")
 
-if not candidates:
-    print("  🛑 No viable candidates. Exiting.")
-    save_cooldowns(cooldowns)
-    sys.exit()
+    if not candidates:
+        print("  🛑 No viable candidates. Exiting.")
+        save_cooldowns(cooldowns)
+        return
 
-# Sort by volume, take top 5
-import random
-candidates.sort(key=lambda x: float(x.get("volume", 0)), reverse=True)
-top_candidates = candidates[:20]
-targets = random.sample(top_candidates, min(5, len(top_candidates)))
+    candidates.sort(key=lambda x: float(x.get("volume", 0)), reverse=True)
+    top_candidates = candidates[:20]
+    targets = random.sample(top_candidates, min(5, len(top_candidates)))
 
-# Step 5: Analyse and trade
-for market in targets:
-    question = market.get("question")
-    raw_ids  = market.get("clobTokenIds", "[]")
-    token_ids = json.loads(raw_ids) if isinstance(raw_ids, str) else raw_ids
+    for market in targets:
+        question = market.get("question")
+        raw_ids  = market.get("clobTokenIds", "[]")
+        token_ids = json.loads(raw_ids) if isinstance(raw_ids, str) else raw_ids
 
-    if not token_ids or len(token_ids) < 2:
-        continue
+        if not token_ids or len(token_ids) < 2:
+            continue
 
-    try:
-        buy_data  = clob_client.get_price(token_ids[0], side="BUY")
-        sell_data = clob_client.get_price(token_ids[0], side="SELL")
-        best_ask  = float(buy_data.get('price', 1.0))
-        best_bid  = float(sell_data.get('price', 0.0))
-        spread    = best_ask - best_bid
-        mid_price = round((best_bid + best_ask) / 2, 3)
-        time.sleep(0.15)
-    except Exception as e:
-        print(f"  ⚠️  Price error: {e}")
-        continue
+        # Double-check: re-verify no conflict has appeared since filtering
+        # (e.g. a position was just opened earlier in this same run)
+        if has_conflicting_position(question, portfolio):
+            continue
 
-    if mid_price < 0.10 or mid_price > 0.90:
-        print(f"  [X] {question[:50]} — price {mid_price} too extreme")
-        continue
-    if spread > MAX_SPREAD:
-        print(f"  [X] {question[:50]} — spread {spread:.3f} too wide")
-        continue
+        try:
+            buy_data  = clob_client.get_price(token_ids[0], side="BUY")
+            sell_data = clob_client.get_price(token_ids[0], side="SELL")
+            best_ask  = float(buy_data.get('price', 1.0))
+            best_bid  = float(sell_data.get('price', 0.0))
+            spread    = best_ask - best_bid
+            mid_price = round((best_bid + best_ask) / 2, 3)
+            time.sleep(0.15)
+        except Exception as e:
+            print(f"  ⚠️  Price error: {e}")
+            continue
 
-    print(f"\n{'='*55}")
-    print(f"🎯 ANALYSING: {question}")
-    print(f"   Vol: ${float(market.get('volume',0)):,.0f} | Mid: ${mid_price} | Spread: {spread:.3f}")
+        if mid_price < 0.10 or mid_price > 0.90:
+            print(f"  [X] {question[:50]} — price {mid_price} too extreme")
+            continue
+        if spread > MAX_SPREAD:
+            print(f"  [X] {question[:50]} — spread {spread:.3f} too wide")
+            continue
 
-    decision = analyse_market(question, mid_price)
-    if not decision:
-        continue
+        print(f"\n{'='*55}")
+        print(f"🎯 ANALYSING: {question}")
+        print(f"   Vol: ${float(market.get('volume',0)):,.0f} | Mid: ${mid_price} | Spread: {spread:.3f}")
 
-    action      = decision.get('action', 'HOLD')
-    true_prob   = float(decision.get('true_probability', mid_price))
-    reasoning   = decision.get('reasoning', '')
-    market_prob = mid_price if action == 'BUY_YES' else (1.0 - mid_price)
-    edge        = abs(true_prob - market_prob)
+        decision = analyse_market(question, mid_price)
+        if not decision:
+            continue
 
-    print(f"  🤖 {action} | Model: {true_prob*100:.1f}% | Market: {mid_price*100:.1f}% | Edge: {edge*100:.1f}%")
+        action      = decision.get('action', 'HOLD')
+        true_prob   = float(decision.get('true_probability', mid_price))
+        reasoning   = decision.get('reasoning', '')
+        market_prob = mid_price if action == 'BUY_YES' else (1.0 - mid_price)
+        edge        = abs(true_prob - market_prob)
 
-    if action == 'HOLD':
-        set_cooldown(question, cooldowns)
-        print(f"  ⏸️  HOLD — market on {MARKET_COOLDOWN_HOURS}hr cooldown")
-        continue
+        print(f"  🤖 {action} | Model: {true_prob*100:.1f}% | Market: {mid_price*100:.1f}% | Edge: {edge*100:.1f}%")
 
-    if action in ('BUY_YES', 'BUY_NO'):
-        if action == 'BUY_YES':
-            exec_price = best_ask if edge > 0.20 else round(best_bid + 0.001, 3)
-            token_id   = token_ids[0]
-            routing    = 'TAKER' if edge > 0.20 else 'MAKER'
-        else:
-            exec_price = round(1.0 - best_bid, 3) if edge > 0.20 else round((1.0 - best_ask) + 0.001, 3)
-            token_id   = token_ids[1]
-            routing    = 'TAKER' if edge > 0.20 else 'MAKER'
+        if action == 'HOLD':
+            set_cooldown(question, cooldowns)
+            print(f"  ⏸️  HOLD — market on {MARKET_COOLDOWN_HOURS}hr cooldown")
+            continue
 
-        if DRY_RUN:
-            log_trade(question, action, POSITION_SIZE, exec_price,
-                     routing, f"{true_prob*100:.1f}%", reasoning)
-        else:
-            try:
-                creds = clob_client.create_or_derive_api_creds()
-                clob_client.set_api_creds(creds)
-                order = clob_client.create_order(
-                    OrderArgs(price=exec_price, size=POSITION_SIZE, side=BUY, token_id=token_id)
-                )
-                clob_client.post_order(order, OrderType.GTC)
+        if action in ('BUY_YES', 'BUY_NO'):
+            if action == 'BUY_YES':
+                exec_price = best_ask if edge > 0.20 else round(best_bid + 0.001, 3)
+                token_id   = token_ids[0]
+                routing    = 'TAKER' if edge > 0.20 else 'MAKER'
+            else:
+                exec_price = round(1.0 - best_bid, 3) if edge > 0.20 else round((1.0 - best_ask) + 0.001, 3)
+                token_id   = token_ids[1]
+                routing    = 'TAKER' if edge > 0.20 else 'MAKER'
+
+            if DRY_RUN:
                 log_trade(question, action, POSITION_SIZE, exec_price,
                          routing, f"{true_prob*100:.1f}%", reasoning)
-            except Exception as e:
-                print(f"  ❌ Order failed: {e}")
+                # Reflect the new position locally so later markets in this
+                # same run can't open a conflicting trade against it.
+                portfolio[question] = portfolio.get(question, {
+                    'yes_shares': 0.0, 'yes_spent': 0.0,
+                    'no_shares': 0.0, 'no_spent': 0.0, 'realized_pnl': 0.0
+                })
+                if action == 'BUY_YES':
+                    portfolio[question]['yes_shares'] += POSITION_SIZE
+                    portfolio[question]['yes_spent']  += POSITION_SIZE * exec_price
+                else:
+                    portfolio[question]['no_shares'] += POSITION_SIZE
+                    portfolio[question]['no_spent']  += POSITION_SIZE * exec_price
+            else:
+                try:
+                    creds = clob_client.create_or_derive_api_creds()
+                    clob_client.set_api_creds(creds)
+                    order = clob_client.create_order(
+                        OrderArgs(price=exec_price, size=POSITION_SIZE, side=BUY, token_id=token_id)
+                    )
+                    clob_client.post_order(order, OrderType.GTC)
+                    log_trade(question, action, POSITION_SIZE, exec_price,
+                             routing, f"{true_prob*100:.1f}%", reasoning)
+                except Exception as e:
+                    print(f"  ❌ Order failed: {e}")
 
-    time.sleep(15)
+        time.sleep(15)
 
-save_cooldowns(cooldowns)
-print(f"\n✅ Run complete — {datetime.now().strftime('%H:%M:%S')}")
+    save_cooldowns(cooldowns)
+    print(f"\n✅ Run complete — {datetime.now().strftime('%H:%M:%S')}")
+
+
+if __name__ == "__main__":
+    main()
