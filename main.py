@@ -50,6 +50,7 @@ STOP_WORDS = {
 
 CSV_FILE = "paper_trades.csv"
 COOLDOWN_FILE = "market_cooldowns.json"
+POSITION_TOKENS_FILE = "position_tokens.json"  # question -> [yes_token_id, no_token_id]
 
 # ==========================================
 # CLIENTS
@@ -87,6 +88,25 @@ def is_on_cooldown(market_question, cooldowns):
 def set_cooldown(market_question, cooldowns, hours=MARKET_COOLDOWN_HOURS):
     cooldown_until = datetime.now() + timedelta(hours=hours)
     cooldowns[market_question] = cooldown_until.isoformat()
+
+# ==========================================
+# POSITION TOKEN CACHE
+# Stores token IDs at buy-time so audits can always price a held
+# position directly, without depending on that day's random market
+# sample containing it.
+# ==========================================
+def load_position_tokens():
+    if not os.path.exists(POSITION_TOKENS_FILE):
+        return {}
+    try:
+        with open(POSITION_TOKENS_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def save_position_tokens(position_tokens):
+    with open(POSITION_TOKENS_FILE, 'w') as f:
+        json.dump(position_tokens, f)
 
 # ==========================================
 # FUZZY MARKET CONFLICT DETECTION
@@ -187,33 +207,69 @@ def log_trade(market, action, size, price, routing, ai_prob, reasoning):
 # ==========================================
 # PORTFOLIO AUDIT — TP / SL, now with post-exit cooldown
 # ==========================================
-def audit_open_positions(portfolio, markets_cache, cooldowns):
+def audit_open_positions(portfolio, markets_cache, cooldowns, position_tokens):
     print("\n💼 AUDITING OPEN POSITIONS...")
 
+    # Fallback only — used for positions that predate the token cache
+    # and were never captured at buy-time.
     market_lookup = {m.get('question'): m for m in markets_cache}
 
     for market_q, pos in list(portfolio.items()):
-        market_data = market_lookup.get(market_q)
-        if not market_data:
-            print(f"  ⚠️  Cannot find live data for: {market_q[:50]}")
+        token_ids = position_tokens.get(market_q)
+
+        if not token_ids:
+            # Legacy fallback: try to recover token IDs from today's scan
+            # and backfill the cache so future runs don't need this path.
+            market_data = market_lookup.get(market_q)
+            if market_data:
+                raw_ids = market_data.get("clobTokenIds", "[]")
+                token_ids = json.loads(raw_ids) if isinstance(raw_ids, str) else raw_ids
+                if token_ids:
+                    position_tokens[market_q] = token_ids
+                    print(f"  🔧 Backfilled token cache for: {market_q[:45]}")
+
+        if not token_ids:
+            print(f"  ⚠️  No token ID on file for: {market_q[:50]} "
+                  f"(not in today's scan either — will retry next run)")
             continue
 
         try:
-            raw_ids = market_data.get("clobTokenIds", "[]")
-            token_ids = json.loads(raw_ids) if isinstance(raw_ids, str) else raw_ids
-            if not token_ids:
-                continue
-
             buy_data  = clob_client.get_price(token_ids[0], side="BUY")
             sell_data = clob_client.get_price(token_ids[0], side="SELL")
-            best_ask  = float(buy_data.get('price', 1.0))
-            best_bid  = float(sell_data.get('price', 0.0))
-            mid_yes   = round((best_bid + best_ask) / 2, 3)
-            mid_no    = round(1.0 - mid_yes, 3)
+
+            # Detect a missing/failed response rather than silently defaulting.
+            # .get('price', ...) previously masked a bad API response by
+            # falling back to 1.0 / 0.0 -- the worst possible values -- which
+            # can fabricate a huge fake ROI swing. Fail loudly instead.
+            if 'price' not in buy_data or 'price' not in sell_data:
+                print(f"  WARNING SUSPECT PRICE -- missing 'price' field for "
+                      f"{market_q[:40]} | buy_data={buy_data} sell_data={sell_data}")
+                continue
+
+            best_ask = float(buy_data['price'])
+            best_bid = float(sell_data['price'])
+
+            # Sanity checks: a real, healthy order book should have
+            # 0 < bid <= ask < 1, with a plausible spread. Anything outside
+            # that is more likely a stale/failed read than a genuine price.
+            suspect = (
+                best_bid <= 0 or best_ask <= 0
+                or best_bid >= 1 or best_ask >= 1
+                or best_bid > best_ask
+                or (best_ask - best_bid) > 0.5
+            )
+            if suspect:
+                print(f"  WARNING SUSPECT PRICE for {market_q[:40]} -- "
+                      f"bid={best_bid} ask={best_ask} -- skipping this audit, "
+                      f"position left untouched")
+                continue
+
+            mid_yes = round((best_bid + best_ask) / 2, 3)
+            mid_no  = round(1.0 - mid_yes, 3)
             time.sleep(0.2)
 
         except Exception as e:
-            print(f"  ⚠️  Price fetch error for {market_q[:40]}: {e}")
+            print(f"  Price fetch error for {market_q[:40]}: {e}")
             continue
 
         exited = False
@@ -257,6 +313,12 @@ def audit_open_positions(portfolio, markets_cache, cooldowns):
         if exited:
             set_cooldown(market_q, cooldowns, hours=POST_EXIT_COOLDOWN_HOURS)
             print(f"  ⏱️  Cooldown set for {POST_EXIT_COOLDOWN_HOURS}h on: {market_q[:45]}")
+            # Note: we deliberately don't delete position_tokens[market_q] here.
+            # A sell in this loop doesn't update `pos` in-memory, so we can't
+            # reliably tell if the position is now fully flat (both legs) or
+            # just one leg closed. A leftover cache entry for a fully-closed
+            # market is harmless — it's just a small unused dict key that gets
+            # ignored once the market no longer appears in load_portfolio().
 
 # ==========================================
 # MARKET SCANNER
@@ -374,6 +436,7 @@ def main():
 
     portfolio  = load_portfolio()
     cooldowns  = load_cooldowns()
+    position_tokens = load_position_tokens()
     print(f"\n📂 Open positions: {len(portfolio)}")
     print(f"⏱️  Markets on cooldown: {len(cooldowns)}")
 
@@ -381,8 +444,9 @@ def main():
     all_markets = fetch_markets()
 
     if portfolio:
-        audit_open_positions(portfolio, all_markets, cooldowns)
+        audit_open_positions(portfolio, all_markets, cooldowns, position_tokens)
         save_cooldowns(cooldowns)          # persist any post-exit cooldowns immediately
+        save_position_tokens(position_tokens)  # persist any backfilled token IDs
         portfolio = load_portfolio()       # reload after any exits
 
     print("\n🔍 SCANNING FOR NEW OPPORTUNITIES...")
@@ -464,6 +528,11 @@ def main():
             if DRY_RUN:
                 log_trade(question, action, POSITION_SIZE, exec_price,
                          routing, f"{true_prob*100:.1f}%", reasoning)
+                # Cache the token IDs now, at the moment of entry, so future
+                # audits can always price this position directly — instead
+                # of depending on this market showing up again in a future
+                # run's random 500-market sample.
+                position_tokens[question] = token_ids
                 # Reflect the new position locally so later markets in this
                 # same run can't open a conflicting trade against it.
                 portfolio[question] = portfolio.get(question, {
@@ -486,12 +555,14 @@ def main():
                     clob_client.post_order(order, OrderType.GTC)
                     log_trade(question, action, POSITION_SIZE, exec_price,
                              routing, f"{true_prob*100:.1f}%", reasoning)
+                    position_tokens[question] = token_ids
                 except Exception as e:
                     print(f"  ❌ Order failed: {e}")
 
         time.sleep(15)
 
     save_cooldowns(cooldowns)
+    save_position_tokens(position_tokens)
     print(f"\n✅ Run complete — {datetime.now().strftime('%H:%M:%S')}")
 
 
