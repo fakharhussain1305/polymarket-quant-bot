@@ -246,8 +246,8 @@ def audit_open_positions(portfolio, markets_cache, cooldowns, position_tokens):
                       f"{market_q[:40]} | buy_data={buy_data} sell_data={sell_data}")
                 continue
 
-            best_ask = float(buy_data['price'])
-            best_bid = float(sell_data['price'])
+            best_bid = float(buy_data['price'])
+            best_ask = float(sell_data['price'])
 
             # Sanity checks: a real, healthy order book should have
             # 0 < bid <= ask < 1, with a plausible spread. Anything outside
@@ -478,8 +478,8 @@ def main():
         try:
             buy_data  = clob_client.get_price(token_ids[0], side="BUY")
             sell_data = clob_client.get_price(token_ids[0], side="SELL")
-            best_ask  = float(buy_data.get('price', 1.0))
-            best_bid  = float(sell_data.get('price', 0.0))
+            best_bid  = float(buy_data.get('price', 0.0))
+            best_ask  = float(sell_data.get('price', 1.0))
             spread    = best_ask - best_bid
             mid_price = round((best_bid + best_ask) / 2, 3)
             time.sleep(0.15)
