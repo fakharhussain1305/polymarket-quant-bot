@@ -206,3 +206,4 @@ Timestamp,Market,Action,Size,Routing,Execution Price,AI Probability,Reasoning
 2026-07-14 08:57:30,Applied Intuition IPO before 2027?,SELL_YES,10.0,EXIT (Take Profit),0.145,N/A,TP at 17.9% ROI
 2026-07-14 10:40:05,Will the Democrats win the Maine Senate race in 2026?,SELL_YES,10.0,EXIT (Take Profit),0.665,N/A,TP at 16.5% ROI
 2026-07-14 12:04:33,"Pedro Sánchez out as PM of Spain by December 31, 2026?",SELL_YES,10.0,EXIT (Take Profit),0.305,N/A,TP at 32.0% ROI
+2026-07-14 14:41:24,US national Bitcoin reserve before 2027?,SELL_YES,10.0,EXIT (Stop Loss),0.175,N/A,SL at -20.5% ROI
