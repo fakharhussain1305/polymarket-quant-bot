@@ -329,3 +329,4 @@ Timestamp,Market,Action,Size,Routing,Execution Price,AI Probability,Reasoning
 2026-08-02 12:51:41,Sam Altman out as OpenAI CEO before 2027?,SELL_YES,10.0,EXIT (Stop Loss),0.085,N/A,SL at -22.7% ROI
 2026-08-02 12:51:52,"Will Ethena reach $0.32 by December 31, 2026?",SELL_NO,10.0,EXIT (Stop Loss),0.72,N/A,SL at -22.6% ROI
 2026-08-02 14:21:31,Ukraine agrees to limit size of armed forces before 2027?,SELL_YES,10.0,EXIT (Stop Loss),0.08,N/A,SL at -27.3% ROI
+2026-08-02 15:50:34,Will the Fed’s upper bound reach 4.25% or higher before 2027?,SELL_YES,10.0,EXIT (Stop Loss),0.312,N/A,SL at -21.4% ROI
