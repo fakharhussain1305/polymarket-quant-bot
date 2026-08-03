@@ -336,3 +336,6 @@ Timestamp,Market,Action,Size,Routing,Execution Price,AI Probability,Reasoning
 2026-08-03 01:26:06,"Will OpenAI launch a new consumer hardware product by December 31, 2026?",SELL_YES,10.0,EXIT (Take Profit),0.375,N/A,TP at 21.0% ROI
 2026-08-03 08:56:40,Applied Intuition IPO before 2027?,SELL_YES,10.0,EXIT (Stop Loss),0.124,N/A,SL at -21.0% ROI
 2026-08-03 12:12:25,Celonis IPO before 2027?,BUY_YES,10.0,TAKER,0.15,35.0%,"The recent news indicates that Celonis is actively preparing for an IPO, with a focus on profitability and platform expansion. The acquisition of Ikigai Labs and the launch of the Celonis Context Model are strategic moves to enhance their AI capabilities, which are likely to attract investor interest. Multiple sources mention an anticipated IPO in 2026-2027, with a valuation target of $13 billion. These developments suggest a strong likelihood of an IPO before 2027, which is higher than the current market-implied probability of 12%."
+2026-08-03 15:34:58,Celonis IPO before 2027?,SELL_YES,10.0,EXIT (Stop Loss),0.12,N/A,SL at -20.0% ROI
+2026-08-03 15:35:00,AI model scores ≥ 90% on FrontierMath Benchmark before 2027?,SELL_YES,10.0,EXIT (Take Profit),0.92,N/A,TP at 17.8% ROI
+2026-08-03 15:35:01,US national Bitcoin reserve before 2027?,SELL_YES,10.0,EXIT (Stop Loss),0.135,N/A,SL at -21.1% ROI
