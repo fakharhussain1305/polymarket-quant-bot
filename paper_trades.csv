@@ -409,3 +409,4 @@ Timestamp,Market,Action,Size,Routing,Execution Price,AI Probability,Reasoning
 2026-08-13 07:07:18,"Will Hyperliquid reach $100 by December 31, 2026?",SELL_YES,10.0,EXIT (Take Profit),0.15,N/A,TP at 24.0% ROI
 2026-08-13 15:46:06,"Will OpenAI launch a new consumer hardware product by December 31, 2026?",SELL_YES,10.0,EXIT (Stop Loss),0.075,N/A,SL at -46.4% ROI
 2026-08-13 21:32:50,Will US GDP growth in 2026 be greater than 2.5%?,SELL_YES,10.0,EXIT (Stop Loss),0.195,N/A,SL at -22.0% ROI
+2026-08-14 10:45:07,Will NVIDIA be the largest company in the world by market cap on December 31?,SELL_NO,10.0,EXIT (Stop Loss),0.265,N/A,SL at -22.1% ROI
