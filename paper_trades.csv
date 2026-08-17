@@ -424,3 +424,4 @@ Timestamp,Market,Action,Size,Routing,Execution Price,AI Probability,Reasoning
 2026-08-17 11:14:37,"Pedro Sánchez out as PM of Spain by December 31, 2026?",SELL_NO,10.0,EXIT (Take Profit),0.88,N/A,TP at 17.3% ROI
 2026-08-17 12:17:20,Will 2026 be the second-hottest year on record?,SELL_YES,10.0,EXIT (Stop Loss),0.25,N/A,SL at -21.9% ROI
 2026-08-17 12:17:30,Will Seth Moulton be the Democratic nominee for Senate in Massachusetts?,SELL_YES,10.0,EXIT (Stop Loss),0.135,N/A,SL at -25.4% ROI
+2026-08-17 13:30:28,Anthropic IPO before 2027?,SELL_YES,10.0,EXIT (Take Profit),0.865,N/A,TP at 16.7% ROI
