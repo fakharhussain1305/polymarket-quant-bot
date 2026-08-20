@@ -51,3 +51,14 @@ jobs:
 
           git diff-index --quiet HEAD || git commit -m "Automated state update: $(date -u +'%Y-%m-%d %H:%M UTC')"
           git push
+snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - env:
+          POLYMARKET_PRIVATE_KEY: ${{ secrets.POLYMARKET_PRIVATE_KEY }}
+        run: python pnl_snapshot.py
