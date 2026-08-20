@@ -2,63 +2,59 @@ name: Trading Bot
 
 on:
   schedule:
-    - cron: '0 * * * *'   # adjust to match your existing schedule
+    - cron: '0 * * * *'
   workflow_dispatch:
+    inputs:
+      job:
+        description: 'Which job to run'
+        required: true
+        default: 'trade'
+        type: choice
+        options:
+          - trade
+          - snapshot
 
 permissions:
   contents: write
 
 jobs:
   trade:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v6
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Run bot
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
-          POLYMARKET_PRIVATE_KEY: ${{ secrets.POLYMARKET_PRIVATE_KEY }}
-        run: python main.py
-
-      - name: Commit updated state
-        run: |
-          git config --global user.name "QuantBot-Automation"
-          git config --global user.email "bot@github.com"
-
-          # Stage every state file the bot maintains, not just the CSV.
-          # market_cooldowns.json and position_tokens.json only work if
-          # they actually persist between runs — previously they were
-          # created fresh in the runner's temp filesystem and discarded
-          # every single time, silently resetting cooldowns and the
-          # token cache on every run.
-          for f in paper_trades.csv market_cooldowns.json position_tokens.json; do
-            if [ -f "$f" ]; then
-              git add "$f"
-            fi
-          done
-
-          git diff-index --quiet HEAD || git commit -m "Automated state update: $(date -u +'%Y-%m-%d %H:%M UTC')"
-          git push
-snapshot:
+    if: github.event_name == 'schedule' || inputs.job == 'trade'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
-      - run: pip install -r requirements.txt
-      - env:
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run bot
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          POLYMARKET_PRIVATE_KEY: ${{ secrets.POLYMARKET_PRIVATE_KEY }}
+        run: python main.py
+      - name: Commit updated state
+        run: |
+          git config --global user.name "QuantBot-Automation"
+          git config --global user.email "bot@github.com"
+          for f in paper_trades.csv market_cooldowns.json position_tokens.json; do
+            if [ -f "$f" ]; then git add "$f"; fi
+          done
+          git diff-index --quiet HEAD || git commit -m "Automated state update: $(date -u +'%Y-%m-%d %H:%M UTC')"
+          git push
+
+  snapshot:
+    if: inputs.job == 'snapshot'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run P&L snapshot
+        env:
           POLYMARKET_PRIVATE_KEY: ${{ secrets.POLYMARKET_PRIVATE_KEY }}
         run: python pnl_snapshot.py
