@@ -486,3 +486,4 @@ Timestamp,Market,Action,Size,Routing,Execution Price,AI Probability,Reasoning
 2026-09-02 03:08:19,"Will GPT-6 be released by December 31, 2026?",SELL_YES,10.0,EXIT (Take Profit),0.77,N/A,TP at 18.3% ROI
 2026-09-02 13:16:58,OpenAI IPO before 2027?,SELL_NO,10.0,EXIT (Take Profit),0.9,N/A,TP at 21.6% ROI
 2026-09-02 13:17:12,"Will Hyperliquid reach $100 by December 31, 2026?",SELL_NO,10.0,EXIT (Take Profit),0.385,N/A,TP at 16.3% ROI
+2026-09-03 01:05:17,"Pedro Sánchez out as PM of Spain by December 31, 2026?",SELL_YES,10.0,EXIT (Take Profit),0.19,N/A,TP at 18.0% ROI
