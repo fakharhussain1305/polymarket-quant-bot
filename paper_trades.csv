@@ -503,3 +503,4 @@ Timestamp,Market,Action,Size,Routing,Execution Price,AI Probability,Reasoning
 2026-09-06 05:32:43,Applied Intuition IPO before 2027?,SELL_YES,10.0,EXIT (Take Profit),0.109,N/A,TP at 34.6% ROI
 2026-09-06 10:21:29,AI bubble burst in 2026?,SELL_YES,10.0,EXIT (Take Profit),0.118,N/A,TP at 15.7% ROI
 2026-09-06 10:21:31,Will 2026 be the second-hottest year on record?,SELL_YES,10.0,EXIT (Take Profit),0.235,N/A,TP at 17.5% ROI
+2026-09-07 08:58:33,OpenAI announces it has achieved AGI before 2027?,SELL_NO,10.0,EXIT (Stop Loss),0.695,N/A,SL at -21.9% ROI
