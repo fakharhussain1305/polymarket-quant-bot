@@ -548,3 +548,4 @@ Timestamp,Market,Action,Size,Routing,Execution Price,AI Probability,Reasoning
 2026-09-17 20:01:21,OpenAI announces it has achieved AGI before 2027?,SELL_YES,10.0,EXIT (Stop Loss),0.145,N/A,SL at -27.9% ROI
 2026-09-18 03:26:21,US recession by end of 2026?,SELL_YES,10.0,EXIT (Stop Loss),0.085,N/A,SL at -23.4% ROI
 2026-09-18 08:48:56,"Will Hyperliquid reach $100 by December 31, 2026?",SELL_YES,10.0,EXIT (Take Profit),0.625,N/A,TP at 38.6% ROI
+2026-09-18 13:25:23,Will The Netherlands recognize Palestine before 2027?,SELL_NO,10.0,EXIT (Take Profit),0.92,N/A,TP at 15.0% ROI
