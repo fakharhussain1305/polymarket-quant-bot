@@ -599,3 +599,4 @@ Timestamp,Market,Action,Size,Routing,Execution Price,AI Probability,Reasoning
 2026-09-29 04:30:58,Will Rafael Grossi be the next Secretary General of the United Nations?,SELL_YES,10.0,EXIT (Take Profit),0.115,N/A,TP at 88.5% ROI
 2026-09-29 17:44:16,"Will OpenAI launch a new consumer hardware product by December 31, 2026?",SELL_NO,10.0,EXIT (Stop Loss),0.515,N/A,SL at -23.1% ROI
 2026-09-29 21:56:25,"Will Hyperliquid perform an airdrop by December 31, 2026? ",SELL_YES,10.0,EXIT (Take Profit),0.185,N/A,TP at 15.6% ROI
+2026-09-30 01:08:55,Will the Fed’s upper bound reach 4.5% or higher before 2027?,SELL_YES,10.0,EXIT (Stop Loss),0.276,N/A,SL at -36.0% ROI
