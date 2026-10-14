@@ -630,3 +630,4 @@ Timestamp,Market,Action,Size,Routing,Execution Price,AI Probability,Reasoning
 2026-10-11 17:24:48,Will 5-6 SpaceX Starship launches successfully reach Space in 2026?,SELL_YES,10.0,EXIT (Stop Loss),0.35,N/A,SL at -27.2% ROI
 2026-10-12 08:41:56,"Will Hyperliquid reach $100 by December 31, 2026?",SELL_YES,10.0,EXIT (Take Profit),0.615,N/A,TP at 18.0% ROI
 2026-10-14 07:08:54,Will 2026 be the second-hottest year on record?,SELL_YES,10.0,EXIT (Stop Loss),0.285,N/A,SL at -23.2% ROI
+2026-10-14 13:20:37,Will the Fed’s upper bound reach 4.25% or higher before 2027?,SELL_YES,10.0,EXIT (Take Profit),0.865,N/A,TP at 20.1% ROI
