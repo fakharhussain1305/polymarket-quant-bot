@@ -36,12 +36,13 @@ jobs:
         run: python main.py
       - name: Commit updated state
         run: |
-          git config --global user.name "QuantBot-Automation"
-          git config --global user.email "bot@github.com"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           for f in paper_trades.csv market_cooldowns.json position_tokens.json; do
             if [ -f "$f" ]; then git add "$f"; fi
           done
           git diff-index --quiet HEAD || git commit -m "Automated state update: $(date -u +'%Y-%m-%d %H:%M UTC')"
+          git pull --rebase --autostash
           git push
 
   snapshot:

@@ -128,20 +128,18 @@ def main():
     rows              = []
     unpriced          = []
 
+    # A market can hold both a YES and a NO leg; price each one separately.
+    # Both legs are priced off the YES token, with NO valued at (1 - YES mid).
+    legs = []
     for market, pos in portfolio.items():
         token_ids = position_tokens.get(market)
-
+        token = token_ids[0] if token_ids else None
         if pos['yes_shares'] > 0.01:
-            side   = 'YES'
-            shares = pos['yes_shares']
-            cost   = pos['yes_spent']
-            token  = token_ids[0] if token_ids else None
-        else:
-            side   = 'NO'
-            shares = pos['no_shares']
-            cost   = pos['no_spent']
-            token  = token_ids[0] if token_ids else None
+            legs.append((market, 'YES', pos['yes_shares'], pos['yes_spent'], token))
+        if pos['no_shares'] > 0.01:
+            legs.append((market, 'NO', pos['no_shares'], pos['no_spent'], token))
 
+    for market, side, shares, cost, token in legs:
         avg_entry = cost / shares
         total_cost += cost
 
@@ -243,7 +241,6 @@ def main():
     if unpriced:
         unpriced_cost = sum(r[4] for r in unpriced)
         print(f"{'OPEN POSITIONS (unpriced)':<35} Cost: ${unpriced_cost:>7.2f}   (no token ID cached — run main.py to backfill)")
-        total_cost += unpriced_cost
 
     print(f"{'REALIZED P&L (closed trades)':<35}                                    {total_realized:>+7.2f}")
     print("-"*65)

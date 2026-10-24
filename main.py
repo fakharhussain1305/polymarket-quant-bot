@@ -1,4 +1,4 @@
-import os, sys, json, time, csv, random
+import os, sys, json, time, csv, random, re
 import requests
 from datetime import datetime, timedelta
 from py_clob_client.client import ClobClient
@@ -27,18 +27,45 @@ BLACKLIST_KEYWORDS = [
     "swift", "mrbeast", "drake", "election", "president", "biden",
     "up or down", "spread:", "o/u", "temperature", "itf", "vs.",
     "cubs", "rockies", "royals", "rangers", "astros", "angels",
-    "brewers", "athletics", "sparks", "storm", "knicks", "spurs"
+    "brewers", "athletics", "sparks", "storm", "knicks", "spurs",
+    # Politics. Matching is whole-word, so "president" no longer catches
+    # "presidential" and needs listing separately.
+    "presidential", "nominee", "senate", "governor", "primary",
+    "prime minister", "pm", "hottest"
 ]
 
 TARGET_SECTORS = {
-    "macro": ["fed", "rate", "inflation", "cpi", "recession", "interest",
+    "macro": ["fed", "rate", "rates", "inflation", "cpi", "recession", "interest",
               "powell", "fomc", "gdp", "nfp", "unemployment", "ecb"],
     "tech":  ["openai", "gpt", "apple", "nvidia", "spacex", "anthropic",
               "ai", "meta", "bytedance", "mistral", "discord", "ipo",
               "perplexity", "kraken", "opensea"],
     "crypto": ["bitcoin", "btc", "ethereum", "eth", "etf", "sec",
-               "solana", "airdrop", "hyperliquid", "megaeth"]
+               "solana", "airdrop", "hyperliquid", "megaeth", "ethena",
+               "metamask"]
 }
+
+
+def contains_keyword(text, keyword):
+    """Whole-word match, case-insensitive.
+
+    Plain substring matching (`keyword in text`) was the original approach and
+    it leaked: "ai" matched Ukraine, Spain, Maine and Kuwait, "eth" matched
+    Seth and Netherlands, "sec" matched second-hottest and "rate" matched
+    corporate. About a quarter of traded markets were politics or weather as
+    a result. Requiring a non-alphanumeric character (or the string edge) on
+    both sides fixes that while still allowing keywords like "vs." or "o/u".
+    """
+    pattern = r"(?<![a-z0-9])" + re.escape(keyword.lower()) + r"(?![a-z0-9])"
+    return re.search(pattern, text.lower()) is not None
+
+
+def contains_any(text, keywords):
+    return any(contains_keyword(text, kw) for kw in keywords)
+
+
+def is_in_target_sector(text):
+    return any(contains_any(text, kws) for kws in TARGET_SECTORS.values())
 
 # Common stop-words that shouldn't count towards market similarity
 STOP_WORDS = {
@@ -55,13 +82,21 @@ POSITION_TOKENS_FILE = "position_tokens.json"  # question -> [yes_token_id, no_t
 # ==========================================
 # CLIENTS
 # ==========================================
-openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-tavily_client = TavilyClient(api_key=os.environ.get("TAVILY_API_KEY"))
-clob_client = ClobClient(
-    "https://clob.polymarket.com",
-    key=os.environ.get("POLYMARKET_PRIVATE_KEY"),
-    chain_id=137, signature_type=0
-)
+# Created in init_clients() rather than at import time, so the filtering and
+# decision logic can be imported and unit-tested without any API keys.
+openai_client = None
+tavily_client = None
+clob_client = None
+
+def init_clients():
+    global openai_client, tavily_client, clob_client
+    openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+    tavily_client = TavilyClient(api_key=os.environ.get("TAVILY_API_KEY"))
+    clob_client = ClobClient(
+        "https://clob.polymarket.com",
+        key=os.environ.get("POLYMARKET_PRIVATE_KEY"),
+        chain_id=137, signature_type=0
+    )
 
 # ==========================================
 # COOLDOWN TRACKER
@@ -360,10 +395,10 @@ def filter_markets(markets, portfolio, cooldowns):
         if has_conflicting_cooldown(question, cooldowns):
             continue
 
-        if any(bl in title for bl in BLACKLIST_KEYWORDS):
+        if contains_any(title, BLACKLIST_KEYWORDS):
             continue
 
-        if not any(kw in title for kws in TARGET_SECTORS.values() for kw in kws):
+        if not is_in_target_sector(title):
             continue
 
         volume = float(market.get("volume", 0.0))
@@ -426,6 +461,40 @@ Return ONLY valid JSON:
         return None
 
 # ==========================================
+# TRADE DECISION
+# ==========================================
+def decide_trade(true_prob, mid_price, llm_action, threshold=EDGE_THRESHOLD):
+    """Turn the model's probability into a trade, enforcing the edge threshold.
+
+    `true_prob` is the model's probability that YES resolves and `mid_price` is
+    the market's YES mid, so both are on the same scale. Edge is their
+    difference: positive means YES looks cheap, negative means NO looks cheap.
+
+    Two earlier bugs are fixed here. EDGE_THRESHOLD was defined but never
+    checked, so the bot acted on the model's action label alone: 173 of the
+    first 333 buys had less than 15% edge by the model's own estimate, and
+    five went in the opposite direction to it. And for BUY_NO the edge was
+    computed as P(YES) minus the NO price, which compares two different things.
+
+    Returns (action, signed_edge). The action is HOLD unless the label and
+    the probability agree and the gap clears the threshold.
+    """
+    edge = true_prob - mid_price
+    if edge >= threshold:
+        implied = 'BUY_YES'
+    elif edge <= -threshold:
+        implied = 'BUY_NO'
+    else:
+        implied = 'HOLD'
+
+    if llm_action != implied:
+        # Covers both a sub-threshold edge and a label that contradicts
+        # the model's own probability. Neither is a trade.
+        return 'HOLD', edge
+    return implied, edge
+
+
+# ==========================================
 # MAIN EXECUTION
 # ==========================================
 def main():
@@ -434,6 +503,7 @@ def main():
     print(f"   {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("="*55)
 
+    init_clients()
     portfolio  = load_portfolio()
     cooldowns  = load_cooldowns()
     position_tokens = load_position_tokens()
@@ -502,15 +572,23 @@ def main():
         if not decision:
             continue
 
-        action      = decision.get('action', 'HOLD')
-        true_prob   = float(decision.get('true_probability', mid_price))
+        llm_action  = decision.get('action', 'HOLD')
+        try:
+            true_prob = float(decision.get('true_probability', mid_price))
+        except (TypeError, ValueError):
+            print(f"  ⚠️  Unparseable probability: {decision.get('true_probability')}")
+            continue
         reasoning   = decision.get('reasoning', '')
-        market_prob = mid_price if action == 'BUY_YES' else (1.0 - mid_price)
-        edge        = abs(true_prob - market_prob)
+        action, signed_edge = decide_trade(true_prob, mid_price, llm_action)
+        edge        = abs(signed_edge)
 
-        print(f"  🤖 {action} | Model: {true_prob*100:.1f}% | Market: {mid_price*100:.1f}% | Edge: {edge*100:.1f}%")
+        print(f"  🤖 Model says {llm_action} | Model: {true_prob*100:.1f}% | "
+              f"Market: {mid_price*100:.1f}% | Edge: {signed_edge*100:+.1f}% -> {action}")
 
         if action == 'HOLD':
+            if llm_action != 'HOLD':
+                print(f"  ⛔ Overruled: label {llm_action} not supported by a "
+                      f"{EDGE_THRESHOLD*100:.0f}%+ edge in that direction")
             set_cooldown(question, cooldowns)
             print(f"  ⏸️  HOLD — market on {MARKET_COOLDOWN_HOURS}hr cooldown")
             continue

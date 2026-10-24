@@ -1,113 +1,153 @@
-# polymarket-bot
 # Polymarket Quant Bot
 
-An automated prediction market trading system built in Python, running on GitHub Actions. The bot scans [Polymarket](https://polymarket.com) for mispriced markets, uses GPT-4o and live news search to estimate true probabilities, and manages a paper-trading portfolio with automated entry, take-profit, and stop-loss logic.
+An automated paper-trading system that asks whether a large language model, given live news, can price prediction-market contracts better than the market does. It has run unattended on GitHub Actions since June 2026 and logged every decision to a public ledger.
 
-Built as a portfolio project while studying for an MSc in Aerospace Engineering, as part of a career transition into quantitative finance.
+**Short answer so far: no.** After the early bugs were fixed, 242 closed trades won 48% of the time and lost $13.08 on $10 positions, about 5p per trade. The breakdown below shows where the losses came from. Finding that out, and building the tooling to be sure the loss was real rather than a bug, is what this project is about.
 
----
-
-## How It Works
-
-The bot runs on a scheduled GitHub Actions workflow and follows three stages each cycle:
-
-**1. Audit open positions**
-Before scanning for new trades, the bot prices every currently held position directly via Polymarket's CLOB API using cached token IDs — so audits are not dependent on which markets happen to appear in that run's scan. Positions that have crossed the take-profit (+15%) or stop-loss (-20%) threshold are closed and logged. A 24-hour cooldown is set on any closed market to prevent immediate re-entry.
-
-**2. Scan for candidates**
-500 markets are fetched from the Gamma API. Each is filtered against a sector whitelist (macro, tech, crypto), minimum volume ($10,000), maximum spread (12 cents), price range (10–90 cents), and a blacklist of sports, celebrity, and unactionable markets. Markets on cooldown, or fuzzy-matched as similar to a market already held in portfolio, are skipped.
-
-**3. Analyse and trade**
-Up to 5 filtered candidates are passed to GPT-4o with live news context from Tavily Search. The model returns a true probability estimate and a BUY_YES / BUY_NO / HOLD decision. If the estimated edge exceeds 15%, a $10 paper position is opened. HOLDs set a 6-hour cooldown on that market.
+Built as a portfolio project alongside an MSc in Aerospace Engineering, as part of a move into quantitative finance. Paper trading only: no real money has been placed.
 
 ---
 
-## Architecture
+## Background: prediction markets in one paragraph
+
+On [Polymarket](https://polymarket.com), each question ("Will the Fed cut rates in 2026?") has a YES share and a NO share. A winning share pays $1 and a losing share pays nothing, so a YES price of $0.30 is the market saying "30% likely". If you believe the true probability is 50%, buying at $0.30 has positive expected value. The bot's whole strategy rests on that comparison: an estimated probability against the market price.
+
+---
+
+## How it works
+
+Each scheduled run has three stages.
+
+**1. Audit open positions.** Every held position is priced directly from Polymarket's order book (the CLOB API), using token IDs cached when the position was opened. A position at +15% closes as a take-profit and one at −20% as a stop-loss. A closed market then cannot be re-entered for 24 hours.
+
+**2. Scan for candidates.** 500 active markets are fetched from the Gamma API and filtered:
+- the title must contain a macro, tech or crypto keyword and no blacklisted keyword, using whole-word matching (see the bugs table);
+- volume must be at least $10,000, the spread at most 12¢ and the price between 10¢ and 90¢;
+- the market must not be on cooldown or a reworded duplicate of one already held.
+
+**3. Analyse and trade.** Five of the top candidates go to GPT-4o along with recent news from Tavily search. The model returns a probability that YES resolves, an action and its reasoning. A $10 paper position opens only if the model's action agrees with its own probability *and* that probability is at least 15 percentage points from the market price. Otherwise the market is put on a 6-hour cooldown.
 
 ```
-main.py                  Core bot logic (audit → scan → analyse → trade)
-paper_trades.csv         Persistent trade ledger (committed back to repo each run)
-market_cooldowns.json    Per-market cooldown timestamps (persisted between runs)
-position_tokens.json     CLOB token ID cache for held positions (persisted between runs)
-.github/workflows/
-  run_bot.yml            Scheduled GitHub Actions workflow
+main.py                 Bot: audit -> scan -> analyse -> trade
+analyze_portfolio.py    Replays the ledger: realised P&L by code version (no keys, no network)
+pnl_snapshot.py         Marks open positions to market (needs network access)
+tests/                  Unit tests for filtering, edge logic and ledger replay
+paper_trades.csv        Every trade with the model's probability and reasoning
+market_cooldowns.json   Cooldown state, persisted between runs
+position_tokens.json    Token-ID cache for held positions
+.github/workflows/      Scheduled bot run, and tests on every push
 ```
 
-All three JSON/CSV state files are committed back to the repo at the end of each run so that state persists across the ephemeral GitHub Actions environment.
+GitHub Actions machines start fresh every run, so the workflow commits the three state files back to the repo afterwards. That is why most commits here are automated.
 
 ---
 
-## Key Design Decisions
+## Results (as of 24 October 2026)
 
-**Fuzzy conflict detection** — Before opening a position, the bot checks whether any currently held market covers the same underlying question. This uses word-overlap similarity after stripping stop-words, so "OpenAI IPO before 2027?" and "Will OpenAI go public by December 31 2026?" are correctly identified as the same bet, preventing the portfolio from taking contradictory positions on the same event.
+Regenerate these with `python analyze_portfolio.py`.
 
-**Token ID caching** — Each market's CLOB token IDs are stored at buy-time in `position_tokens.json`. This means the audit function can always price a held position directly, without relying on that market appearing in the day's random 500-market scan — which previously caused positions to silently go unaudited for extended periods.
+| Code version | Exits | Take-profit / stop-loss | Win rate | Realised P&L | Per exit |
+|---|---|---|---|---|---|
+| v1: 14 Jun – 2 Jul, exit-logging bug live | 47 | 7 / 40 | 59.6% | +$7.94 | +$0.169 |
+| **v2: 3 Jul – 24 Oct, bugs fixed** | **242** | **117 / 125** | **48.3%** | **−$13.08** | **−$0.054** |
+| All | 290 | 124 / 166 | 50.0% | −$5.90 | −$0.020 |
 
-**State persistence** — The GitHub Actions workflow commits all three state files (`paper_trades.csv`, `market_cooldowns.json`, `position_tokens.json`) back to the repo after each run. Committing only the CSV — as was initially done — caused cooldowns and the token cache to silently reset on every run.
+The ledger has 654 rows across 93 markets. 34 positions are open, with $279.40 of capital at risk. v1's profit is not evidence of skill. An indentation bug closed positions on every run whatever the price, so v1's exits are arbitrary.
 
-**Price sanity guard** — Before acting on any audit decision, bid and ask prices are validated: both must be strictly between 0 and 1, bid must be below ask, and spread must be under 50 cents. Implausible prices are logged and skipped rather than triggering a false exit.
+### Why v2 lost money
 
-**Bid/ask orientation** — Polymarket's CLOB API returns the best resting buy order (bid) when called with `side="BUY"`, and the best resting sell order (ask) with `side="SELL"`. Variable names in the code reflect the correct orientation; swapping these produces a systematically negative spread and silently disables the spread filter.
+**The exit rule needs a 57% win rate to break even.** If winners make about +15% and losers about −20%, the break-even win rate is 20 ÷ (15 + 20) ≈ 57%. The bot won 48%. With these thresholds, the model's probability estimates had to be clearly better than the market's just to stand still.
+
+**A quarter of the markets were never meant to be traded.** Keyword matching used plain substrings, so `"ai"` matched Ukr*ai*ne, Sp*ai*n, M*ai*ne and Kuw*ai*t, `"eth"` matched S*eth* and N*eth*erlands, `"sec"` matched *sec*ond-hottest and `"rate"` matched corpo*rate*. 23 of 93 markets were politics or weather. The single most-traded market, bought 15 times, was "Will 2026 be the second-hottest year on record?". The leaked markets were not what lost the money, though: in v2 they roughly broke even (+$1.32 over 45 exits). The losses came from the markets the bot was designed to trade.
+
+**The model's own edge test was never applied.** `EDGE_THRESHOLD` was defined but never checked, so the bot acted on the model's BUY/HOLD label alone. By the model's own probabilities, 173 of 333 buys had less than 15 points of edge. Five bought the side the model itself thought less likely. In one case it bought NO on "Ukraine agrees not to join NATO" while estimating 85% for YES.
+
+**Fixing both would not have produced an edge.** Replaying v2 with the whole-word filter and edge check applied, 102 exits would still have been taken. They won 44% of the time and lost about 6p each, roughly the same as the trades the fixes would have removed. This replay is approximate, because entry price stands in for the market mid at the time. Both fixes are now live as v3, because the bot should do what its design says. However, the evidence points at the signal itself: **GPT-4o reading four news snippets does not out-forecast a liquid prediction market.**
+
+**By market type (v2 exits):**
+
+| Category | Exits | Win rate | Realised P&L |
+|---|---|---|---|
+| IPO markets | 49 | 31% | −$9.53 |
+| Other tech | 71 | 54% | −$6.16 |
+| Crypto | 51 | 47% | −$4.00 |
+| Leaked (politics, weather) | 45 | 53% | +$1.32 |
+| Macro | 27 | 59% | +$4.53 |
+
+IPO markets account for most of the loss. The model repeatedly overestimated the chance of a company listing before 2027. A plausible reason is that news coverage of an IPO being *prepared* reads to the model as evidence that it will *happen*, while the market prices in how often listings slip. Macro is the only profitable category, but 27 trades is far too few to call that an edge.
+
+### Why the paper results flatter the strategy
+
+- Exits are priced at the mid-price, but a real sell would hit the bid, which is lower.
+- Maker orders are assumed to fill instantly, when in reality they may never fill.
+- No fees, gas or slippage are modelled.
+
+A live version would do worse than these numbers.
 
 ---
 
-## Bugs Found and Fixed
+## Bugs found and fixed
 
-This project has been as much an exercise in systematic debugging as in strategy design. Bugs found through log analysis and their fixes:
+Most were found by reading the ledger and the run logs, not by the strategy failing loudly. Most of them failed silently.
 
 | Bug | Effect | Fix |
 |---|---|---|
-| Swapped `best_bid` / `best_ask` assignment | Spread always negative; spread filter never fired; entry/exit prices anchored to wrong side of book | Corrected variable assignment from CLOB API response |
-| `log_trade()` call outside the TP/SL `if` block | Every position closed on every audit run regardless of ROI | Moved sell logic inside threshold guard |
-| State files not committed to repo | Cooldowns and token cache reset to zero on every run | Workflow now commits all three state files |
-| Audit used random market scan to look up token IDs | Positions not in that day's sample went unaudited indefinitely | Token IDs cached at buy-time; audit prices directly via CLOB |
-| Exact-string conflict check | Bot held BUY_YES and BUY_NO on same underlying event when question wording differed slightly | Replaced with fuzzy word-overlap similarity check |
+| `log_trade()` called outside the take-profit / stop-loss `if` block | Every position closed on every audit run, regardless of price | Moved the sell inside the threshold check (v2) |
+| Bid and ask variables swapped | Spread always negative, so the spread filter never fired | Corrected the CLOB response mapping (v2) |
+| Only the trade CSV committed between runs | Cooldowns and the token cache reset every hour | Workflow commits all three state files (v2) |
+| Audit found token IDs through the random 500-market scan | Positions not in that run's sample went unaudited for days | Token IDs cached at buy time (v2) |
+| Exact-string duplicate check | Held YES and NO on the same event when the wording differed | Word-overlap similarity check (v2) |
+| Substring keyword matching | 23 of 93 traded markets were outside the target sectors | Whole-word matching, regression tests on the real titles (v3) |
+| `EDGE_THRESHOLD` never checked; BUY_NO edge compared P(YES) with the NO price | Trades taken with little or contradictory edge | `decide_trade()` enforces the threshold in the right direction (v3) |
+| Ledger replay divided by zero on sells with no position | `analyze_portfolio.py` crashed on a fresh clone | Orphan sells skipped and reported (v3) |
+
+The 31 orphan sell rows from the first bug stay in the ledger. It is an honest record of what the bot did, not a curated one.
 
 ---
 
-## Paper Trading Results (as of July 2026)
+## Design notes
 
-| Metric | Value |
-|---|---|
-| Total trades logged | 157 |
-| Unique markets | 40 |
-| Closed positions | 19 |
-| Open positions | 21 |
-| **Realized P&L** | **+$7.52** |
-| Capital at risk (open) | $102.50 |
-| Take-profit exits | 7 |
-| Stop-loss exits | 67 |
+- **Duplicate detection.** "OpenAI IPO before 2027?" and "Will OpenAI IPO by December 31 2026?" are the same bet. Questions are compared by word overlap after removing stop-words, so the bot cannot hold contradictory positions on one event.
+- **Price sanity checks.** An audit is skipped, not acted on, if the bid or ask is missing, outside (0, 1), crossed, or more than 50¢ apart. An earlier version silently defaulted a failed price fetch to $1.00 or $0.00, which can fake a huge ROI swing.
+- **Clients created at run time, not import time.** The filtering and decision logic can therefore be imported and tested without API keys.
 
-The realized P&L figure is dominated by two outsized wins — MegaETH airdrop (+$6.63) and Fed rate cuts (+$3.12) — and partially offset by losses on IPO markets (OpenAI, Applied Intuition, Kraken, Discord, Freddie Mac) where GPT-4o systematically overestimated the probability of near-term IPOs. The high stop-loss count relative to take-profits (67 vs 7) reflects the bugs documented above: the majority of pre-July-3rd exits were caused by the `log_trade` indentation bug and do not reflect real strategy performance. Post-fix performance (July 3rd onwards) shows a single stop-loss and zero take-profits on a still-small sample.
+---
+
+## Running it
+
+Without any API keys, from a fresh clone:
+
+```bash
+pip install -r requirements.txt -r requirements-dev.txt
+python -m pytest -q            # filtering, edge and ledger-replay tests
+python analyze_portfolio.py    # regenerates the results table above
+```
+
+To run the bot itself, you need OpenAI and Tavily keys:
+
+```bash
+export OPENAI_API_KEY=...
+export TAVILY_API_KEY=...
+export POLYMARKET_PRIVATE_KEY=...   # wallet key; only used if DRY_RUN is False
+python main.py
+```
+
+`DRY_RUN = True` is set at the top of `main.py`. In that mode trades are written to the CSV and no orders are sent. The workflow is scheduled hourly, but GitHub runs scheduled jobs on public repos less often than that in practice.
+
+---
+
+## How this was built
+
+I designed the strategy, and the first version of the code was written with Google Gemini. From there I moved to Claude, using it as a pair programmer for the debugging work behind most of the bugs table: I pasted run logs and ledger rows, we worked out which behaviour was a bug and which was the market, and I made and tested the changes. The v3 audit was done with Claude Code working directly on this repo. It reproduced the results from the ledger, found the substring-matching and unchecked-edge bugs, wrote the regression tests and replayed the ledger to check whether the fixes would have changed the conclusion.
+
+The judgement calls were mine. I chose what to measure, which results to trust, and to publish the losing numbers rather than tune the bot until they looked better.
 
 ---
 
 ## Stack
 
-- **Python 3.11**
-- [py-clob-client](https://github.com/Polymarket/py-clob-client) — Polymarket CLOB order placement and pricing
-- [OpenAI Python SDK](https://github.com/openai/openai-python) — GPT-4o for probability estimation
-- [Tavily](https://tavily.com) — Live news search for LLM context
-- **GitHub Actions** — Scheduled execution and state persistence
-
----
-
-## Running Locally
-
-```bash
-pip install -r requirements.txt
-
-export OPENAI_API_KEY=your_key
-export TAVILY_API_KEY=your_key
-export POLYMARKET_PRIVATE_KEY=your_key
-
-python main.py
-```
-
-`DRY_RUN = True` is set by default at the top of `main.py`. No real orders will be placed until this is set to `False` and a funded Polymarket wallet is connected.
-
----
+Python 3.11 · [py-clob-client](https://github.com/Polymarket/py-clob-client) · [OpenAI Python SDK](https://github.com/openai/openai-python) (GPT-4o) · [Tavily](https://tavily.com) · GitHub Actions · pytest
 
 ## Disclaimer
 
-This is a paper-trading research project. No real money is at risk. Nothing here constitutes financial advice.
+A paper-trading research project. No real money is at risk, and nothing here is financial advice.

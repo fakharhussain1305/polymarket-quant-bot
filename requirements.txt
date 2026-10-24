@@ -1,4 +1,4 @@
-py-clob-client
-openai
-tavily-python
-requests
+py-clob-client~=0.34.6
+openai~=3.37
+tavily-python~=0.8.5
+requests~=2.34
