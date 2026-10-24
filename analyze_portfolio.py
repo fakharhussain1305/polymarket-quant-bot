@@ -26,8 +26,8 @@ CSV_FILE = "paper_trades.csv"
 ERAS = [
     ("2026-06-14", "v1: original code (exit-logging bug)"),
     ("2026-07-03", "v2: exit and pricing bugs fixed"),
-    # v3 was pushed on 24 Oct 2026 shortly before 16:00 UTC (ledger times are UTC).
-    ("2026-10-24 16:00", "v3: whole-word filters, edge threshold enforced"),
+    # v3 was pushed at 15:03 UTC on 24 Oct 2026 (ledger times are UTC).
+    ("2026-10-24 15:03", "v3: whole-word filters, edge threshold enforced"),
 ]
 
 
