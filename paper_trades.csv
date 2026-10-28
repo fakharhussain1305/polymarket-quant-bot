@@ -661,3 +661,4 @@ Timestamp,Market,Action,Size,Routing,Execution Price,AI Probability,Reasoning
 2026-10-27 19:49:54,Will Pete Hegseth leave the Trump administration before 2027?,SELL_NO,10.0,EXIT (Stop Loss),0.595,N/A,SL at -25.6% ROI
 2026-10-27 19:50:01,"Will OpenAI launch a new consumer hardware product by December 31, 2026?",SELL_YES,10.0,EXIT (Stop Loss),0.15,N/A,SL at -25.0% ROI
 2026-10-27 23:31:35,Kraken IPO closing market cap above $18B?,SELL_NO,10.0,EXIT (Take Profit),0.982,N/A,TP at 15.5% ROI
+2026-10-28 04:16:10,Will Perplexity AI be acquired before 2027?,SELL_YES,10.0,EXIT (Stop Loss),0.06,N/A,SL at -34.1% ROI
