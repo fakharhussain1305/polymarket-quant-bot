@@ -672,3 +672,4 @@ Timestamp,Market,Action,Size,Routing,Execution Price,AI Probability,Reasoning
 2026-11-04 08:41:02,Will less than 5 SpaceX Starship launches successfully reach Space in 2026?,SELL_NO,10.0,EXIT (Take Profit),0.29,N/A,TP at 20.3% ROI
 2026-11-04 16:52:35,Opensea FDV above $1B one day after launch?,SELL_NO,10.0,EXIT (Take Profit),0.955,N/A,TP at 15.1% ROI
 2026-11-04 16:52:44,Will Apple be the largest company in the world by market cap on December 31?,SELL_NO,10.0,EXIT (Stop Loss),0.443,N/A,SL at -31.3% ROI
+2026-11-06 07:41:40,Anthropic IPO before 2027?,SELL_YES,10.0,EXIT (Stop Loss),0.665,N/A,SL at -20.9% ROI
